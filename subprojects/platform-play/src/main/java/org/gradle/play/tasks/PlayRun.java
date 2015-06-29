@@ -21,19 +21,22 @@ import org.gradle.api.Incubating;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.internal.ConventionTask;
+import org.gradle.api.internal.file.FileResolver;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.api.tasks.compile.BaseForkOptions;
 import org.gradle.deployment.internal.DeploymentRegistry;
 import org.gradle.logging.ProgressLogger;
 import org.gradle.logging.ProgressLoggerFactory;
 import org.gradle.play.internal.run.DefaultPlayRunSpec;
 import org.gradle.play.internal.run.PlayApplicationDeploymentHandle;
 import org.gradle.play.internal.run.PlayRunSpec;
+import org.gradle.process.JavaForkOptions;
+import org.gradle.process.internal.DefaultJavaForkOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.util.Set;
@@ -62,7 +65,7 @@ public class PlayRun extends ConventionTask {
     @InputFiles
     private FileCollection changingClasspath;
 
-    private BaseForkOptions forkOptions;
+    private JavaForkOptions forkOptions;
 
     private DeploymentRegistry deploymentRegistry;
 
@@ -71,11 +74,16 @@ public class PlayRun extends ConventionTask {
     /**
      * fork options for the running a Play application.
      */
-    public BaseForkOptions getForkOptions() {
+    public JavaForkOptions getForkOptions() {
         if (forkOptions == null) {
-            forkOptions = new BaseForkOptions();
+            forkOptions = new DefaultJavaForkOptions(getFileResolver());
         }
         return forkOptions;
+    }
+
+    @Inject
+    protected FileResolver getFileResolver() {
+        throw new UnsupportedOperationException();
     }
 
     @TaskAction
@@ -90,10 +98,10 @@ public class PlayRun extends ConventionTask {
                 .start("Start Play server", "Starting Play");
 
         int httpPort = getHttpPort();
-        PlayRunSpec spec = new DefaultPlayRunSpec(runtimeClasspath, changingClasspath, applicationJar, assetsJar, assetsDirs, getProject().getProjectDir(), getForkOptions(), httpPort);
+        PlayRunSpec spec = new DefaultPlayRunSpec(runtimeClasspath, changingClasspath, applicationJar, assetsJar, assetsDirs, getProject().getProjectDir(), httpPort);
 
         try {
-            deploymentHandle.start(spec);
+            deploymentHandle.start(spec, forkOptions);
             progressLogger.completed();
             progressLogger = progressLoggerFactory.newOperation(PlayRun.class)
                     .start(String.format("Run Play App at http://localhost:%d/", httpPort),

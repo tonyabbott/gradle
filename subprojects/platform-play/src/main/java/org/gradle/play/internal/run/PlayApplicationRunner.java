@@ -18,6 +18,7 @@ package org.gradle.play.internal.run;
 
 import org.gradle.api.GradleException;
 import org.gradle.internal.Factory;
+import org.gradle.process.JavaForkOptions;
 import org.gradle.process.internal.JavaExecHandleBuilder;
 import org.gradle.process.internal.WorkerProcess;
 import org.gradle.process.internal.WorkerProcessBuilder;
@@ -33,8 +34,8 @@ public class PlayApplicationRunner {
         this.adapter = adapter;
     }
 
-    public PlayApplicationRunnerToken start(PlayRunSpec spec) {
-        WorkerProcess process = createWorkerProcess(spec.getProjectPath(), workerFactory, spec, adapter);
+    public PlayApplicationRunnerToken start(PlayRunSpec spec, JavaForkOptions forkOptions) {
+        WorkerProcess process = createWorkerProcess(spec.getProjectPath(), workerFactory, spec, adapter, forkOptions);
         process.start();
 
         PlayWorkerClient clientCallBack = new PlayWorkerClient();
@@ -49,19 +50,15 @@ public class PlayApplicationRunner {
         }
     }
 
-    private static WorkerProcess createWorkerProcess(File workingDir, Factory<WorkerProcessBuilder> workerFactory, PlayRunSpec spec, VersionedPlayRunAdapter adapter) {
+    private static WorkerProcess createWorkerProcess(File workingDir, Factory<WorkerProcessBuilder> workerFactory, PlayRunSpec spec, VersionedPlayRunAdapter adapter, JavaForkOptions forkOptions) {
         WorkerProcessBuilder builder = workerFactory.create();
         builder.setBaseName("Gradle Play Worker");
         builder.sharedPackages("org.gradle.play.internal.run");
         JavaExecHandleBuilder javaCommand = builder.getJavaCommand();
+        if (forkOptions != null) {
+            forkOptions.copyTo(javaCommand);
+        }
         javaCommand.setWorkingDir(workingDir);
-        javaCommand.setMinHeapSize(spec.getForkOptions().getMemoryInitialSize());
-        javaCommand.setMaxHeapSize(spec.getForkOptions().getMemoryMaximumSize());
-        // TODO: clean up before releasing
-        // workaround for JVM crash caused by modifying jar file that is used
-        //javaCommand.jvmArgs("-Dsun.zip.disableMemoryMapping=true");
-        // for debugging Play worker JVM
-        //javaCommand.setDebug(true);
         return builder.worker(new PlayWorkerServer(spec, adapter)).build();
     }
 }

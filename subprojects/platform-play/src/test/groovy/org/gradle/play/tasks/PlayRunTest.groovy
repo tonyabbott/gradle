@@ -51,15 +51,15 @@ class PlayRunTest extends Specification {
     def "can customize memory"() {
         given:
         1 * systemInputStream.read() >> 4
-        playRun.forkOptions.memoryInitialSize = "1G"
-        playRun.forkOptions.memoryMaximumSize = "5G"
+        playRun.forkOptions.minHeapSize = "1G"
+        playRun.forkOptions.maxHeapSize = "5G"
         when:
         playRun.execute();
         then:
         1 * deploymentRegistry.get(PlayApplicationDeploymentHandle, _) >> deploymentHandle
         1 * deploymentHandle.start(_) >> { PlayRunSpec spec ->
-            assert spec.getForkOptions().memoryInitialSize == "1G"
-            assert spec.getForkOptions().memoryMaximumSize == "5G"
+            assert spec.getForkOptions().minHeapSize == "1G"
+            assert spec.getForkOptions().maxHeapSize == "5G"
             runnerToken
         }
     }

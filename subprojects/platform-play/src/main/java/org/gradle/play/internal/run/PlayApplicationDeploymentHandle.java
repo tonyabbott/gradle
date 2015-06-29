@@ -19,6 +19,7 @@ package org.gradle.play.internal.run;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.deployment.internal.DeploymentHandle;
+import org.gradle.process.JavaForkOptions;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -48,10 +49,10 @@ public class PlayApplicationDeploymentHandle implements DeploymentHandle {
         }
     }
 
-    public void start(PlayRunSpec spec) {
+    public void start(PlayRunSpec spec, JavaForkOptions forkOptions) {
         if (stopped.get()) {
             logger.info("Starting Play deployment handle for " + id);
-            runnerToken = runner.start(spec);
+            runnerToken = runner.start(spec, forkOptions);
             stopped.set(false);
         } else {
             runnerToken.rebuildSuccess();

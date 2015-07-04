@@ -20,10 +20,7 @@ import org.gradle.api.*;
 import org.gradle.internal.service.ServiceRegistry;
 import org.gradle.jvm.JarBinarySpec;
 import org.gradle.jvm.JvmLibrarySpec;
-import org.gradle.jvm.internal.DefaultJarBinarySpec;
-import org.gradle.jvm.internal.DefaultJvmLibrarySpec;
-import org.gradle.jvm.internal.JavaPlatformResolver;
-import org.gradle.jvm.internal.JvmLibrarySpecInternal;
+import org.gradle.jvm.internal.*;
 import org.gradle.jvm.internal.toolchain.JavaToolChainInternal;
 import org.gradle.jvm.platform.JavaPlatform;
 import org.gradle.jvm.platform.internal.DefaultJavaPlatform;
@@ -57,7 +54,7 @@ public class JvmComponentPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        modelRegistry.getRoot().applyToAllLinksTransitive(ModelType.of(JarBinarySpec.class), JarBinaryRules.class);
+        modelRegistry.getRoot().applyToAllLinksTransitive(ModelType.of(ComponentSpec.class), JarBinaryRules.class);
     }
 
     @SuppressWarnings("UnusedDeclaration")
@@ -97,7 +94,13 @@ public class JvmComponentPlugin implements Plugin<Project> {
             for (final JavaPlatform platform : selectedPlatforms) {
                 final JavaToolChainInternal toolChain = (JavaToolChainInternal) toolChains.getForPlatform(platform);
                 final String binaryName = createBinaryName(jvmLibrary, namingSchemeBuilder, selectedPlatforms, platform);
-                binaries.create(binaryName, new ConfigureJarBinary(toolChain, platform));
+                binaries.create(binaryName, new Action<JarBinarySpec>() {
+                    @Override
+                    public void execute(JarBinarySpec jarBinary) {
+                        jarBinary.setToolChain(toolChain);
+                        jarBinary.setTargetPlatform(platform);
+                    }
+                });
             }
         }
 
@@ -140,21 +143,6 @@ public class JvmComponentPlugin implements Plugin<Project> {
                 componentBuilder = componentBuilder.withVariantDimension(platform.getName());
             }
             return componentBuilder.build().getLifecycleTaskName();
-        }
-    }
-
-    private static class ConfigureJarBinary implements Action<JarBinarySpec> {
-        private final JavaToolChainInternal toolChain;
-        private final JavaPlatform platform;
-
-        public ConfigureJarBinary(JavaToolChainInternal toolChain, JavaPlatform platform) {
-            this.toolChain = toolChain;
-            this.platform = platform;
-        }
-
-        public void execute(JarBinarySpec jarBinary) {
-            jarBinary.setToolChain(toolChain);
-            jarBinary.setTargetPlatform(platform);
         }
     }
 }

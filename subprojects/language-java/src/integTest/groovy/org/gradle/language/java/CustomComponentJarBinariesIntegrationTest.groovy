@@ -54,7 +54,6 @@ class SampleLibraryRules extends RuleSource {
         def toolChain = toolChains.getForPlatform(platform)
         def binaryName = namingSchemeBuilder.withComponentName(library.name).withTypeString("jar").build().lifecycleTaskName
         binaries.create(binaryName) { binary ->
-            binary.baseName = library.name
             binary.toolChain = toolChain
             binary.targetPlatform = platform
         }

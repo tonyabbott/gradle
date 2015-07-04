@@ -56,7 +56,7 @@ public class DefaultModelRegistry implements ModelRegistry {
     public DefaultModelRegistry(ModelRuleExtractor ruleExtractor) {
         this.ruleExtractor = ruleExtractor;
         ModelCreator rootCreator = ModelCreators.of(ModelPath.ROOT, BiActions.doNothing()).descriptor("<root>").withProjection(EmptyModelProjection.INSTANCE).build();
-        modelGraph = new ModelGraph(new ModelElementNode(toCreatorBinder(rootCreator, ModelPath.ROOT), null));
+        modelGraph = new ModelGraph(new ModelElementNode(toCreatorBinder(rootCreator), null));
         modelGraph.getRoot().setState(Created);
         ruleBindings = new RuleBindings(modelGraph);
     }
@@ -74,13 +74,13 @@ public class DefaultModelRegistry implements ModelRegistry {
         }
 
         ModelNodeInternal root = modelGraph.getRoot();
-        registerNode(root, new ModelElementNode(toCreatorBinder(creator, ModelPath.ROOT), root));
+        registerNode(root, new ModelElementNode(toCreatorBinder(creator), root));
         return this;
     }
 
-    private CreatorRuleBinder toCreatorBinder(ModelCreator creator, ModelPath scope) {
+    private CreatorRuleBinder toCreatorBinder(ModelCreator creator) {
         BindingPredicate subject = new BindingPredicate(ModelReference.of(creator.getPath(), ModelType.untyped(), ModelNode.State.Created));
-        List<BindingPredicate> inputs = mapInputs(creator.getInputs(), scope);
+        List<BindingPredicate> inputs = mapInputs(creator.getInputs());
         return new CreatorRuleBinder(creator, subject, inputs, unboundRules);
     }
 
@@ -156,7 +156,7 @@ public class DefaultModelRegistry implements ModelRegistry {
             return;
         }
         BindingPredicate mappedSubject = mapSubject(subject, role, scope);
-        List<BindingPredicate> mappedInputs = mapInputs(mutator.getInputs(), scope);
+        List<BindingPredicate> mappedInputs = mapInputs(mutator.getInputs());
         MutatorRuleBinder<T> binder = new MutatorRuleBinder<T>(mappedSubject, mappedInputs, mutator, unboundRules);
         ruleBindings.add(binder);
     }
@@ -247,7 +247,7 @@ public class DefaultModelRegistry implements ModelRegistry {
         }
 
         // Will internally verify that this is valid
-        node.replaceCreatorRuleBinder(toCreatorBinder(newCreator, ModelPath.ROOT));
+        node.replaceCreatorRuleBinder(toCreatorBinder(newCreator));
         ruleBindings.add(node.getCreatorBinder());
         return this;
     }
@@ -553,14 +553,14 @@ public class DefaultModelRegistry implements ModelRegistry {
         }
     }
 
-    private List<BindingPredicate> mapInputs(List<? extends ModelReference<?>> inputs, ModelPath scope) {
+    private List<BindingPredicate> mapInputs(List<? extends ModelReference<?>> inputs) {
         if (inputs.isEmpty()) {
             return Collections.emptyList();
         }
         ArrayList<BindingPredicate> result = new ArrayList<BindingPredicate>(inputs.size());
         for (ModelReference<?> input : inputs) {
             if (input.getPath() != null) {
-                result.add(new BindingPredicate(input.withPath(scope.descendant(input.getPath()))));
+                result.add(new BindingPredicate(input));
             } else {
                 result.add(new BindingPredicate(input.inScope(ModelPath.ROOT)));
             }
@@ -989,7 +989,7 @@ public class DefaultModelRegistry implements ModelRegistry {
             if (!getPath().isDirectChild(creator.getPath())) {
                 throw new IllegalArgumentException(String.format("Reference element creator has a path (%s) which is not a child of this node (%s).", creator.getPath(), getPath()));
             }
-            registerNode(this, new ModelReferenceNode(toCreatorBinder(creator, ModelPath.ROOT)));
+            registerNode(this, new ModelReferenceNode(toCreatorBinder(creator)));
         }
 
         @Override
@@ -997,7 +997,7 @@ public class DefaultModelRegistry implements ModelRegistry {
             if (!getPath().isDirectChild(creator.getPath())) {
                 throw new IllegalArgumentException(String.format("Linked element creator has a path (%s) which is not a child of this node (%s).", creator.getPath(), getPath()));
             }
-            registerNode(this, new ModelElementNode(toCreatorBinder(creator, ModelPath.ROOT), this));
+            registerNode(this, new ModelElementNode(toCreatorBinder(creator), this));
         }
 
         @Override

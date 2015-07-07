@@ -19,7 +19,6 @@ package org.gradle.jvm.internal;
 import org.gradle.api.Action;
 import org.gradle.jvm.JarBinarySpec;
 import org.gradle.model.Defaults;
-import org.gradle.model.Path;
 import org.gradle.model.RuleSource;
 import org.gradle.platform.base.ComponentSpec;
 
@@ -28,9 +27,9 @@ import java.io.File;
 @SuppressWarnings("UnusedDeclaration")
 public class JarBinaryRules extends RuleSource {
     @Defaults
-    void configureJarBinaries(final ComponentSpec jvmLibrary, @Path("buildDir") File buildDir) {
-        final File binariesDir = new File(buildDir, "jars");
-        final File classesDir = new File(buildDir, "classes");
+    void configureJarBinaries(final ComponentSpec jvmLibrary, BuildDirHolder buildDirHolder) {
+        final File binariesDir = new File(buildDirHolder.getBuildDir(), "jars");
+        final File classesDir = new File(buildDirHolder.getBuildDir(), "classes");
         jvmLibrary.getBinaries().withType(JarBinarySpec.class).beforeEach(new Action<JarBinarySpec>() {
             @Override
             public void execute(JarBinarySpec jarBinary) {

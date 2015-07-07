@@ -80,6 +80,11 @@ public class JvmComponentPlugin implements Plugin<Project> {
             return new DefaultJavaToolChainRegistry(toolChain);
         }
 
+        @Model
+        BuildDirHolder buildDirHolder(@Path("buildDir") File buildDir) {
+            return new BuildDirHolder(buildDir);
+        }
+
         @Mutate
         public void registerPlatformResolver(PlatformResolvers platformResolvers) {
             platformResolvers.register(new JavaPlatformResolver());

@@ -27,6 +27,8 @@ import java.io.File;
 @SuppressWarnings("UnusedDeclaration")
 public class JarBinaryRules extends RuleSource {
     @Defaults
+    // TODO Use @Path("buildDir") to inject buildDir
+    // Workaround required because @Path inputs are scoped to the subject of the rule in scoped rules (probably a bug)
     void configureJarBinaries(final ComponentSpec jvmLibrary, BuildDirHolder buildDirHolder) {
         final File binariesDir = new File(buildDirHolder.getBuildDir(), "jars");
         final File classesDir = new File(buildDirHolder.getBuildDir(), "classes");

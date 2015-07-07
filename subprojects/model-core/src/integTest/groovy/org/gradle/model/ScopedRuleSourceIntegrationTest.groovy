@@ -149,6 +149,6 @@ class ScopedRuleSourceIntegrationTest extends AbstractIntegrationSpec {
       - <unspecified> (java.lang.String) parameter 1 in scope of 'tasks.taskWithUnboundRuleSourceApplied'
     Immutable:
       - <unspecified> (java.lang.Integer) parameter 2
-      - some.inner.path (java.lang.String) parameter 3""")
+      - tasks.taskWithUnboundRuleSourceApplied.some.inner.path (java.lang.String) parameter 3""")
     }
 }

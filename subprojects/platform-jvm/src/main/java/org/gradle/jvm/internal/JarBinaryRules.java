@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-package org.gradle.jvm.plugins;
+package org.gradle.jvm.internal;
 
 import org.gradle.api.Action;
 import org.gradle.jvm.JarBinarySpec;
-import org.gradle.jvm.internal.JarBinarySpecInternal;
 import org.gradle.model.Defaults;
 import org.gradle.model.Path;
 import org.gradle.model.RuleSource;

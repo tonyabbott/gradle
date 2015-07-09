@@ -16,7 +16,7 @@
 
 package org.gradle.model.internal.manage.schema.extract;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import groovy.lang.MissingMethodException;
 import groovy.lang.MissingPropertyException;
@@ -31,8 +31,8 @@ import org.objectweb.asm.*;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 
 public class ManagedProxyClassGenerator extends AbstractProxyClassGenerator {
@@ -80,27 +80,33 @@ public class ManagedProxyClassGenerator extends AbstractProxyClassGenerator {
     }
 
     public <T, M extends T, D extends T> Class<? extends M> generate(Class<M> managedTypeClass, Class<D> delegateType) {
+        if (delegateType != null && !delegateType.isInterface()) {
+            throw new IllegalArgumentException("Delegate type must be null or an interface");
+        }
         ClassWriter visitor = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
 
         String generatedTypeName = managedTypeClass.getName() + "_Impl";
         Type generatedType = Type.getType("L" + generatedTypeName.replaceAll("\\.", "/") + ";");
 
         Class<?> superclass;
-        List<String> interfaceInternalNames;
+        ImmutableSet.Builder<String> interfaceInternalNames = ImmutableSet.builder();
+        interfaceInternalNames.add(MANAGED_INSTANCE_TYPE);
         if (managedTypeClass.isInterface()) {
             superclass = Object.class;
-            interfaceInternalNames = ImmutableList.of(Type.getInternalName(managedTypeClass), MANAGED_INSTANCE_TYPE);
+            interfaceInternalNames = interfaceInternalNames.add(Type.getInternalName(managedTypeClass));
         } else {
             superclass = managedTypeClass;
-            interfaceInternalNames = ImmutableList.of(MANAGED_INSTANCE_TYPE);
+        }
+        if (delegateType != null) {
+            interfaceInternalNames.add(Type.getInternalName(delegateType));
         }
 
-        generateProxyClass(visitor, managedTypeClass, delegateType, interfaceInternalNames, generatedType, Type.getType(superclass));
+        generateProxyClass(visitor, managedTypeClass, delegateType, interfaceInternalNames.build(), generatedType, Type.getType(superclass));
 
         return defineClass(visitor, managedTypeClass.getClassLoader(), generatedTypeName);
     }
 
-    private void generateProxyClass(ClassWriter visitor, Class<?> managedTypeClass, Class<?> delegateTypeClass, List<String> interfaceInternalNames, Type generatedType, Type superclassType) {
+    private void generateProxyClass(ClassWriter visitor, Class<?> managedTypeClass, Class<?> delegateTypeClass, Collection<String> interfaceInternalNames, Type generatedType, Type superclassType) {
         declareClass(visitor, interfaceInternalNames, generatedType, superclassType);
         declareStateField(visitor);
         declareCanCallSettersField(visitor);
@@ -116,7 +122,7 @@ public class ManagedProxyClassGenerator extends AbstractProxyClassGenerator {
         visitor.visitEnd();
     }
 
-    private void declareClass(ClassVisitor visitor, List<String> interfaceInternalNames, Type generatedType, Type superclassType) {
+    private void declareClass(ClassVisitor visitor, Collection<String> interfaceInternalNames, Type generatedType, Type superclassType) {
         visitor.visit(Opcodes.V1_6, Opcodes.ACC_PUBLIC, generatedType.getInternalName(), null,
             superclassType.getInternalName(), Iterables.toArray(interfaceInternalNames, String.class));
     }
@@ -288,14 +294,8 @@ public class ManagedProxyClassGenerator extends AbstractProxyClassGenerator {
     }
 
     private void writeDelegateMethods(ClassVisitor visitor, Type generatedType, Class<?> delegateTypeClass) {
-        ClassDetails classDetails = ClassInspector.inspect(delegateTypeClass);
-        for (PropertyDetails property : classDetails.getProperties()) {
-            for (Method method : property.getGetters()) {
-                writeDelegatedGetter(visitor, generatedType, delegateTypeClass, method);
-            }
-            for (Method method : property.getSetters()) {
-                writeDelegatedSetter(visitor, generatedType, delegateTypeClass, method);
-            }
+        for (Method delegateMethod : delegateTypeClass.getMethods()) {
+            writeDelegatedMethod(visitor, generatedType, delegateTypeClass, delegateMethod);
         }
     }
 
@@ -432,24 +432,21 @@ public class ManagedProxyClassGenerator extends AbstractProxyClassGenerator {
         methodVisitor.visitEnd();
     }
 
-    private void writeDelegatedGetter(ClassVisitor visitor, Type generatedType, Class<?> delegateTypeClass, Method method) {
+    private void writeDelegatedMethod(ClassVisitor visitor, Type generatedType, Class<?> delegateTypeClass, Method method) {
         MethodVisitor methodVisitor = declareMethod(visitor, method);
-        putDelegateFieldValueOnStack(methodVisitor, generatedType, delegateTypeClass);
-        invokeDelegateMethod(methodVisitor, delegateTypeClass, method);
-        castFirstStackElement(methodVisitor, method.getReturnType());
-        finishVisitingMethod(methodVisitor, Opcodes.ARETURN);
+        invokeDelegateMethod(methodVisitor, generatedType, delegateTypeClass, method);
+        if (method.getReturnType() != Void.TYPE) {
+            finishVisitingMethod(methodVisitor, Opcodes.ARETURN);
+        } else {
+            finishVisitingMethod(methodVisitor);
+        }
     }
 
-    private void writeDelegatedSetter(ClassVisitor visitor, Type generatedType, Class<?> delegateTypeClass, Method method) {
-        // TODO:LPTR This needs to observe $canCallSetters
-        MethodVisitor methodVisitor = declareMethod(visitor, method);
+    private void invokeDelegateMethod(MethodVisitor methodVisitor, Type generatedType, Class<?> delegateTypeClass, Method method) {
         putDelegateFieldValueOnStack(methodVisitor, generatedType, delegateTypeClass);
-        putFirstMethodArgumentOnStack(methodVisitor);
-        invokeDelegateMethod(methodVisitor, delegateTypeClass, method);
-        finishVisitingMethod(methodVisitor);
-    }
-
-    private void invokeDelegateMethod(MethodVisitor methodVisitor, Class<?> delegateTypeClass, Method method) {
+        for (int paramNo = 0; paramNo < method.getParameterCount(); paramNo++) {
+            putMethodArgumentOnStack(methodVisitor, paramNo + 1);
+        }
         methodVisitor.visitMethodInsn(Opcodes.INVOKEINTERFACE, Type.getInternalName(delegateTypeClass), method.getName(), Type.getMethodDescriptor(method), true);
     }
 

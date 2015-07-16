@@ -26,11 +26,15 @@ import org.gradle.api.Transformer;
 import org.gradle.internal.Actions;
 import org.gradle.internal.BiAction;
 import org.gradle.internal.Cast;
+import org.gradle.model.Managed;
 import org.gradle.model.ModelMap;
 import org.gradle.model.RuleSource;
 import org.gradle.model.internal.core.rule.describe.ModelRuleDescriptor;
 import org.gradle.model.internal.core.rule.describe.NestedModelRuleDescriptor;
+import org.gradle.model.internal.inspect.ManagedModelCreators;
 import org.gradle.model.internal.manage.instance.ManagedInstance;
+import org.gradle.model.internal.manage.schema.ModelSchema;
+import org.gradle.model.internal.manage.schema.ModelSchemaStore;
 import org.gradle.model.internal.type.ModelType;
 
 import java.util.Collection;
@@ -99,6 +103,33 @@ public class NodeBackedModelMap<T> implements ModelMap<T>, ManagedInstance {
             public <S extends T> ModelCreator creator(final MutableModelNode parentNode, ModelRuleDescriptor sourceDescriptor, final ModelType<S> type, final String name) {
                 return ModelCreators.of(
                     parentNode.getPath().child(name), new BiAction<MutableModelNode, List<ModelView<?>>>() {
+                        @Override
+                        public void execute(MutableModelNode modelNode, List<ModelView<?>> modelViews) {
+                            InstanceFactory<? super T, String> instantiator = Cast.uncheckedCast(modelViews.get(0).getInstance());
+                            S item = instantiator.create(type.getConcreteClass(), modelNode, name);
+                            modelNode.setPrivateData(type, item);
+                        }
+                    })
+                    .inputs(factoryReference)
+                    .withProjection(UnmanagedModelProjection.of(type))
+                    .descriptor(NestedModelRuleDescriptor.append(sourceDescriptor, "create(%s)", name))
+                    .build();
+            }
+        };
+    }
+
+    public static <T> ChildNodeCreatorStrategy<T> createManagedOrUsingFactory(final ModelSchemaStore schemaStore, final ModelReference<? extends InstanceFactory<? super T, String>> factoryReference) {
+        return new ChildNodeCreatorStrategy<T>() {
+            @Override
+            public <S extends T> ModelCreator creator(final MutableModelNode parentNode, ModelRuleDescriptor sourceDescriptor, final ModelType<S> type, final String name) {
+                ModelPath path = parentNode.getPath().child(name);
+                final boolean managed = type.getRawClass().isAnnotationPresent(Managed.class);
+                if (managed) {
+                    ModelSchema<S> schema = schemaStore.getSchema(type);
+                    return ManagedModelCreators.creator(sourceDescriptor, path, schema);
+                }
+                return ModelCreators.of(
+                    path, new BiAction<MutableModelNode, List<ModelView<?>>>() {
                         @Override
                         public void execute(MutableModelNode modelNode, List<ModelView<?>> modelViews) {
                             InstanceFactory<? super T, String> instantiator = Cast.uncheckedCast(modelViews.get(0).getInstance());

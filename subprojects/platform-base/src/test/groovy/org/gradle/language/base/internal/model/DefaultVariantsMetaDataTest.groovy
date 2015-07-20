@@ -15,8 +15,10 @@
  */
 
 package org.gradle.language.base.internal.model
-
 import org.gradle.api.Named
+import org.gradle.model.internal.manage.schema.extract.DefaultModelSchemaStore
+import org.gradle.model.internal.manage.schema.extract.ModelPropertyNatureExtractor
+import org.gradle.model.internal.manage.schema.extract.ModelSchemaExtractor
 import org.gradle.platform.base.BinarySpec
 import org.gradle.platform.base.Variant
 import spock.lang.Specification
@@ -27,12 +29,18 @@ class DefaultVariantsMetaDataTest extends Specification {
         given:
         MyBinarySpec spec = Mock()
 
+        def schemaStore = new DefaultModelSchemaStore(
+            new ModelSchemaExtractor([],
+                new ModelPropertyNatureExtractor([new VariantPropertyNatureExtractorStrategy()])
+            )
+        )
+
         when:
         spec.platform >> platform
         spec.flavor >> flavor
         spec.buildType >> buildType
         spec.notVariantDimension >> notVariantDimension
-        def variants = DefaultVariantsMetaData.extractFrom(spec)
+        def variants = DefaultVariantsMetaData.extractFrom(spec, schemaStore)
 
         then:
         variants.nonNullDimensions == (nonNullDimensions as Set)

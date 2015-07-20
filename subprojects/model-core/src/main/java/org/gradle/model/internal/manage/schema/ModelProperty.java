@@ -16,10 +16,16 @@
 
 package org.gradle.model.internal.manage.schema;
 
+import com.google.common.base.Function;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 import net.jcip.annotations.ThreadSafe;
+import org.gradle.internal.Cast;
 import org.gradle.model.internal.type.ModelType;
 
+import java.lang.reflect.Method;
+import java.util.Collection;
+import java.util.Map;
 import java.util.Set;
 
 @ThreadSafe
@@ -30,17 +36,26 @@ public class ModelProperty<T> {
     private final boolean writable;
     private final Set<ModelType<?>> declaredBy;
     private final boolean unmanaged;
+    private final Method getter;
+    private final Map<Class<? extends ModelPropertyNature>, ModelPropertyNature> natures;
 
-    private ModelProperty(ModelType<T> type, String name, boolean writable, Set<ModelType<?>> declaredBy, boolean unmanaged) {
+    private ModelProperty(ModelType<T> type, String name, boolean writable, Set<ModelType<?>> declaredBy, boolean unmanaged, Method getter, Collection<ModelPropertyNature> natures) {
         this.name = name;
         this.type = type;
         this.writable = writable;
         this.declaredBy = ImmutableSet.copyOf(declaredBy);
         this.unmanaged = unmanaged;
+        this.getter = getter;
+        this.natures = Maps.uniqueIndex(natures, new Function<ModelPropertyNature, Class<? extends ModelPropertyNature>>() {
+            @Override
+            public Class<? extends ModelPropertyNature> apply(ModelPropertyNature input) {
+                return input.getClass();
+            }
+        });
     }
 
-    public static <T> ModelProperty<T> of(ModelType<T> type, String name, boolean writable, Set<ModelType<?>> declaredBy, boolean unmanaged) {
-        return new ModelProperty<T>(type, name, writable, declaredBy, unmanaged);
+    public static <T> ModelProperty<T> of(ModelType<T> type, String name, boolean writable, Set<ModelType<?>> declaredBy, boolean unmanaged, Method getter, Collection<ModelPropertyNature> natures) {
+        return new ModelProperty<T>(type, name, writable, declaredBy, unmanaged, getter, natures);
     }
 
     public String getName() {
@@ -61,6 +76,18 @@ public class ModelProperty<T> {
 
     public Set<ModelType<?>> getDeclaredBy() {
         return declaredBy;
+    }
+
+    public Method getGetter() {
+        return getter;
+    }
+
+    public boolean hasNature(Class<? extends ModelPropertyNature> natureType) {
+        return natures.containsKey(natureType);
+    }
+
+    public <N extends ModelPropertyNature> N getNature(Class<N> natureType) {
+        return Cast.uncheckedCast(natures.get(natureType));
     }
 
     @Override

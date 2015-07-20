@@ -29,8 +29,6 @@ import org.gradle.model.internal.manage.schema.ModelSchemaStore;
 import org.gradle.model.internal.manage.schema.ModelStructSchema;
 import org.gradle.model.internal.type.ModelType;
 
-import java.util.List;
-
 public class StructStrategy extends ManagedImplTypeSchemaExtractionStrategySupport {
 
     private static final ManagedProxyFactory PROXY_FACTORY = new ManagedProxyFactory();
@@ -55,7 +53,7 @@ public class StructStrategy extends ManagedImplTypeSchemaExtractionStrategySuppo
 
     private final ManagedProxyClassGenerator classGenerator = new ManagedProxyClassGenerator();
 
-    protected <R> ModelSchema<R> createSchema(final ModelSchemaExtractionContext<R> extractionContext, final ModelSchemaStore store, ModelType<R> type, List<ModelProperty<?>> properties, Class<R> concreteClass) {
+    protected <R> ModelSchema<R> createSchema(final ModelSchemaExtractionContext<R> extractionContext, final ModelSchemaStore store, ModelType<R> type, Iterable<ModelProperty<?>> properties, Class<R> concreteClass) {
         Class<? extends R> implClass = classGenerator.generate(concreteClass);
         final ModelStructSchema<R> schema = ModelSchema.struct(type, properties, implClass, null, new Function<ModelStructSchema<R>, NodeInitializer>() {
             @Override

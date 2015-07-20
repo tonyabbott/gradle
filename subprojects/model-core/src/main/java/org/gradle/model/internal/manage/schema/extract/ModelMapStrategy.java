@@ -42,7 +42,7 @@ public class ModelMapStrategy implements ModelSchemaExtractionStrategy {
 
     // TODO extract common stuff from this and ModelSet and reuse
 
-    public <T> ModelSchemaExtractionResult<T> extract(ModelSchemaExtractionContext<T> extractionContext, ModelSchemaStore store, final ModelSchemaCache cache) {
+    public <T> ModelSchemaExtractionResult<T> extract(ModelSchemaExtractionContext<T> extractionContext, ModelSchemaStore store, final ModelSchemaCache cache, ModelPropertyNatureExtractor propertyNatureExtractor) {
         ModelType<T> type = extractionContext.getType();
         if (MODEL_MAP_MODEL_TYPE.isAssignableFrom(type)) {
             if (!type.getRawClass().equals(ModelMap.class)) {

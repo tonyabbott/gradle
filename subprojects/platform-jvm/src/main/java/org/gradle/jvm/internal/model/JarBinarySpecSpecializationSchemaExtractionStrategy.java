@@ -30,7 +30,6 @@ import org.gradle.model.internal.manage.schema.extract.ModelSchemaExtractionCont
 import org.gradle.model.internal.type.ModelType;
 
 import java.lang.reflect.Method;
-import java.util.List;
 
 public class JarBinarySpecSpecializationSchemaExtractionStrategy extends ManagedImplTypeSchemaExtractionStrategySupport {
 
@@ -54,7 +53,7 @@ public class JarBinarySpecSpecializationSchemaExtractionStrategy extends Managed
     }
 
     @Override
-    protected <R> ModelSchema<R> createSchema(final ModelSchemaExtractionContext<R> extractionContext, final ModelSchemaStore store, ModelType<R> type, List<ModelProperty<?>> properties, Class<R> concreteClass) {
+    protected <R> ModelSchema<R> createSchema(final ModelSchemaExtractionContext<R> extractionContext, final ModelSchemaStore store, ModelType<R> type, Iterable<ModelProperty<?>> properties, Class<R> concreteClass) {
         Class<? extends R> implClass = classGenerator.generate(concreteClass, JarBinarySpecInternal.class);
         return ModelSchema.struct(type, properties, implClass, JarBinarySpecInternal.class, new Function<ModelStructSchema<R>, NodeInitializer>() {
             @Override

@@ -23,6 +23,7 @@ import com.google.common.collect.TreeMultimap;
 import org.gradle.api.Named;
 import org.gradle.internal.Cast;
 import org.gradle.language.base.internal.model.*;
+import org.gradle.model.internal.manage.schema.ModelSchemaStore;
 import org.gradle.platform.base.BinarySpec;
 
 import java.util.*;
@@ -37,10 +38,12 @@ public class VariantsMatcher {
 
     private final List<VariantDimensionSelectorFactory> factories;
     private final Class<? extends BinarySpec> binarySpecType;
+    private final ModelSchemaStore schemaStore;
 
-    public VariantsMatcher(List<VariantDimensionSelectorFactory> factories, Class<? extends BinarySpec> binarySpecType) {
+    public VariantsMatcher(List<VariantDimensionSelectorFactory> factories, Class<? extends BinarySpec> binarySpecType, ModelSchemaStore schemaStore) {
         this.factories = factories;
         this.binarySpecType = binarySpecType;
+        this.schemaStore = schemaStore;
     }
 
     private VariantDimensionSelector<Object> createSelector(Object o) {
@@ -62,38 +65,7 @@ public class VariantsMatcher {
         TreeMultimap<String, VariantValue> selectedVariants = TreeMultimap.create(String.CASE_INSENSITIVE_ORDER, SPEC_COMPARATOR);
         Set<BinarySpec> removedSpecs = Sets.newHashSet();
         for (BinarySpec binarySpec : binaries) {
-            if (binarySpecType.isAssignableFrom(binarySpec.getClass())) {
-                VariantsMetaData binaryVariants = DefaultVariantsMetaData.extractFrom(binarySpec);
-                Set<String> commonsDimensions = Sets.intersection(resolveDimensions, binaryVariants.getNonNullDimensions());
-                Set<String> incompatibleDimensionTypes = VariantsMetaDataHelper.incompatibleDimensionTypes(variantsMetaData, binaryVariants, commonsDimensions);
-                if (incompatibleDimensionTypes.isEmpty()) {
-                    for (String dimension : commonsDimensions) {
-                        Class<?> dimensionType = variantsMetaData.getDimensionType(dimension).getConcreteClass();
-                        boolean isStringType = String.class == dimensionType;
-                        Object requestedValue = isStringType ? variantsMetaData.getValueAsString(dimension) : variantsMetaData.getValueAsType(Cast.<Class<? extends Named>>uncheckedCast(dimensionType), dimension);
-                        Object binaryValue = isStringType ? binaryVariants.getValueAsString(dimension) : binaryVariants.getValueAsType(Cast.<Class<? extends Named>>uncheckedCast(dimensionType), dimension);
-                        VariantDimensionSelector<Object> selector = createSelector(requestedValue);
-                        if (selector.isCompatibleWithRequirement(requestedValue, binaryValue)) {
-                            VariantValue value = new VariantValue(binaryValue, binarySpec);
-                            SortedSet<VariantValue> variantValues = selectedVariants.get(dimension);
-                            for (VariantValue variantValue : variantValues) {
-                                // all the values are equal, but we store all the binaries that match that value
-                                // and incrementally build a list of binaries which are excluded because of a better match
-                                if (selector.betterFit(requestedValue, variantValue.value, binaryValue)) {
-                                    // the new value is a better fit than the old one
-                                    removedSpecs.add(variantValue.spec);
-                                } else if (selector.betterFit(requestedValue, binaryValue, variantValue.value)) {
-                                    // the old value is a better fit than the new one, let's ignore the new one altogether
-                                    removedSpecs.add(value.spec);
-                                }
-                            }
-                            selectedVariants.put(dimension, value);
-                        } else {
-                            removedSpecs.add(binarySpec);
-                        }
-                    }
-                }
-            }
+            filterBinary(variantsMetaData, resolveDimensions, selectedVariants, removedSpecs, binarySpec);
         }
 
         Set<BinarySpec> union = null;
@@ -102,6 +74,45 @@ public class VariantsMatcher {
             union = union == null ? variantValues : Sets.union(union, variantValues);
         }
         return union == null ? Collections.<BinarySpec>emptySet() : Sets.difference(union, removedSpecs);
+    }
+
+    private <T extends BinarySpec> void filterBinary(VariantsMetaData variantsMetaData, Set<String> resolveDimensions, TreeMultimap<String, VariantValue> selectedVariants, Set<BinarySpec> removedSpecs, T binarySpec) {
+        if (!binarySpecType.isAssignableFrom(binarySpec.getClass())) {
+            return;
+        }
+
+        VariantsMetaData binaryVariants = DefaultVariantsMetaData.extractFrom(binarySpec, schemaStore);
+        Set<String> commonsDimensions = Sets.intersection(resolveDimensions, binaryVariants.getNonNullDimensions());
+        Set<String> incompatibleDimensionTypes = VariantsMetaDataHelper.incompatibleDimensionTypes(variantsMetaData, binaryVariants, commonsDimensions);
+        if (!incompatibleDimensionTypes.isEmpty()) {
+            return;
+        }
+
+        for (String dimension : commonsDimensions) {
+            Class<?> dimensionType = variantsMetaData.getDimensionType(dimension).getConcreteClass();
+            boolean isStringType = String.class == dimensionType;
+            Object requestedValue = isStringType ? variantsMetaData.getValueAsString(dimension) : variantsMetaData.getValueAsType(Cast.<Class<? extends Named>>uncheckedCast(dimensionType), dimension);
+            Object binaryValue = isStringType ? binaryVariants.getValueAsString(dimension) : binaryVariants.getValueAsType(Cast.<Class<? extends Named>>uncheckedCast(dimensionType), dimension);
+            VariantDimensionSelector<Object> selector = createSelector(requestedValue);
+            if (selector.isCompatibleWithRequirement(requestedValue, binaryValue)) {
+                VariantValue value = new VariantValue(binaryValue, binarySpec);
+                SortedSet<VariantValue> variantValues = selectedVariants.get(dimension);
+                for (VariantValue variantValue : variantValues) {
+                    // all the values are equal, but we store all the binaries that match that value
+                    // and incrementally build a list of binaries which are excluded because of a better match
+                    if (selector.betterFit(requestedValue, variantValue.value, binaryValue)) {
+                        // the new value is a better fit than the old one
+                        removedSpecs.add(variantValue.spec);
+                    } else if (selector.betterFit(requestedValue, binaryValue, variantValue.value)) {
+                        // the old value is a better fit than the new one, let's ignore the new one altogether
+                        removedSpecs.add(value.spec);
+                    }
+                }
+                selectedVariants.put(dimension, value);
+            } else {
+                removedSpecs.add(binarySpec);
+            }
+        }
     }
 
     private static class VariantValue {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 the original author or authors.
+ * Copyright 2015 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,16 @@
 
 package org.gradle.model.internal.manage.schema.extract;
 
-import org.gradle.api.Nullable;
-import org.gradle.model.internal.manage.schema.ModelSchemaStore;
-import org.gradle.model.internal.manage.schema.cache.ModelSchemaCache;
+import org.gradle.model.internal.manage.schema.ModelPropertyNature;
 
-public interface ModelSchemaExtractionStrategy {
+public class ModelPropertyNatureExtractionResult {
+    private final Iterable<? extends ModelPropertyNature> extractedNatures;
 
-    @Nullable
-    <T> ModelSchemaExtractionResult<T> extract(ModelSchemaExtractionContext<T> extractionContext, ModelSchemaStore store, ModelSchemaCache cache, ModelPropertyNatureExtractor propertyNatureExtractor);
+    public ModelPropertyNatureExtractionResult(Iterable<? extends ModelPropertyNature> extractedNatures) {
+        this.extractedNatures = extractedNatures;
+    }
 
+    public Iterable<? extends ModelPropertyNature> getExtractedNatures() {
+        return extractedNatures;
+    }
 }

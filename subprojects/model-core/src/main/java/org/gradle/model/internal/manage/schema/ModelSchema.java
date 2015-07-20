@@ -30,7 +30,7 @@ public class ModelSchema<T> {
         COLLECTION,
         SPECIALIZED_MAP(false, false), // not quite
         STRUCT,
-        UNMANAGED(false, false); // some type we know nothing about
+        UNMANAGED(false, false); // some type we know little about
 
         private final boolean isManaged;
         private final boolean isAllowedPropertyTypeOfManagedType;
@@ -72,8 +72,8 @@ public class ModelSchema<T> {
         return new ModelMapSchema<T>(type, elementType, managedImpl);
     }
 
-    public static <T> ModelSchema<T> unmanaged(ModelType<T> type) {
-        return new ModelSchema<T>(type, Kind.UNMANAGED);
+    public static <T> ModelSchema<T> unmanaged(ModelType<T> type, Iterable<? extends ModelProperty<?>> properties) {
+        return new ModelUnmanagedSchema<T>(type, properties);
     }
 
     protected ModelSchema(ModelType<T> type, Kind kind) {

@@ -36,7 +36,7 @@ public abstract class SetStrategy implements ModelSchemaExtractionStrategy {
         this.modelType = modelType;
     }
 
-    public <T> ModelSchemaExtractionResult<T> extract(ModelSchemaExtractionContext<T> extractionContext, ModelSchemaStore store, final ModelSchemaCache cache) {
+    public <T> ModelSchemaExtractionResult<T> extract(ModelSchemaExtractionContext<T> extractionContext, ModelSchemaStore store, final ModelSchemaCache cache, ModelPropertyNatureExtractor propertyNatureExtractor) {
         ModelType<T> type = extractionContext.getType();
         if (modelType.isAssignableFrom(type)) {
             if (!type.getRawClass().equals(modelType.getConcreteClass())) {

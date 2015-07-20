@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 the original author or authors.
+ * Copyright 2015 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-package org.gradle.model.internal.manage.schema.extract;
+package org.gradle.model.internal.manage.schema;
 
-import org.gradle.api.Nullable;
-import org.gradle.model.internal.manage.schema.ModelSchemaStore;
-import org.gradle.model.internal.manage.schema.cache.ModelSchemaCache;
+import org.gradle.model.internal.type.ModelType;
 
-public interface ModelSchemaExtractionStrategy {
+public class ModelUnmanagedSchema<T> extends ModelInstanceSchema<T> {
 
-    @Nullable
-    <T> ModelSchemaExtractionResult<T> extract(ModelSchemaExtractionContext<T> extractionContext, ModelSchemaStore store, ModelSchemaCache cache, ModelPropertyNatureExtractor propertyNatureExtractor);
-
+    public ModelUnmanagedSchema(ModelType<T> type, Iterable<? extends ModelProperty<?>> properties) {
+        super(type, Kind.UNMANAGED, properties);
+    }
 }

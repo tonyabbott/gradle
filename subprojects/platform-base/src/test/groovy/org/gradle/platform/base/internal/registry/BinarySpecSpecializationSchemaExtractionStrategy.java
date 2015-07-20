@@ -29,7 +29,6 @@ import org.gradle.platform.base.BinarySpec;
 import org.gradle.platform.base.internal.BinarySpecInternal;
 
 import java.lang.reflect.Method;
-import java.util.List;
 
 // Needed as a separate Java class because Groovy compiler won't recognize type parameter <R>
 public class BinarySpecSpecializationSchemaExtractionStrategy extends ManagedImplTypeSchemaExtractionStrategySupport {
@@ -44,7 +43,7 @@ public class BinarySpecSpecializationSchemaExtractionStrategy extends ManagedImp
     }
 
     @Override
-    protected <R> ModelSchema<R> createSchema(ModelSchemaExtractionContext<R> extractionContext, ModelSchemaStore store, ModelType<R> type, List<ModelProperty<?>> properties, Class<R> concreteClass) {
+    protected <R> ModelSchema<R> createSchema(ModelSchemaExtractionContext<R> extractionContext, ModelSchemaStore store, ModelType<R> type, Iterable<ModelProperty<?>> properties, Class<R> concreteClass) {
         return ModelSchema.struct(type, properties, type.getConcreteClass(), BinarySpecInternal.class, new Function<ModelStructSchema<R>, NodeInitializer>() {
             @Override
             public NodeInitializer apply(ModelStructSchema<R> schema) {

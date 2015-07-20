@@ -41,12 +41,13 @@ import java.util.Queue;
 public class ModelSchemaExtractor {
 
     private final List<? extends ModelSchemaExtractionStrategy> strategies;
+    private final ModelPropertyNatureExtractor propertyNatureExtractor;
 
     public ModelSchemaExtractor() {
-        this(Collections.<ModelSchemaExtractionStrategy>emptyList());
+        this(Collections.<ModelSchemaExtractionStrategy>emptyList(), new ModelPropertyNatureExtractor());
     }
 
-    public ModelSchemaExtractor(List<? extends ModelSchemaExtractionStrategy> strategies) {
+    public ModelSchemaExtractor(List<? extends ModelSchemaExtractionStrategy> strategies, ModelPropertyNatureExtractor propertyNatureExtractor) {
         this.strategies = ImmutableList.<ModelSchemaExtractionStrategy>builder()
             .addAll(strategies)
             .add(
@@ -61,6 +62,7 @@ public class ModelSchemaExtractor {
             )
             .add(new UnmanagedStrategy())
             .build();
+        this.propertyNatureExtractor = propertyNatureExtractor;
     }
 
     public <T> ModelSchema<T> extract(ModelType<T> type, ModelSchemaStore store, ModelSchemaCache cache) {
@@ -101,7 +103,7 @@ public class ModelSchemaExtractor {
         }
 
         for (ModelSchemaExtractionStrategy strategy : strategies) {
-            ModelSchemaExtractionResult<T> result = strategy.extract(extractionContext, store, cache);
+            ModelSchemaExtractionResult<T> result = strategy.extract(extractionContext, store, cache, propertyNatureExtractor);
             if (result != null) {
                 cache.set(type, result.getSchema());
                 return result;

@@ -17,22 +17,21 @@
 package org.gradle.model.internal.manage.schema.extract;
 
 import com.google.common.base.*;
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Iterables;
 import groovy.lang.GroovyObject;
-import org.apache.commons.lang.StringUtils;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.Nullable;
 import org.gradle.internal.reflect.MethodDescription;
 import org.gradle.internal.reflect.MethodSignatureEquivalence;
 import org.gradle.model.Managed;
-import org.gradle.model.Unmanaged;
 import org.gradle.model.internal.manage.schema.ModelProperty;
 import org.gradle.model.internal.manage.schema.ModelSchema;
 import org.gradle.model.internal.manage.schema.ModelSchemaStore;
 import org.gradle.model.internal.manage.schema.cache.ModelSchemaCache;
 import org.gradle.model.internal.type.ModelType;
-import org.gradle.util.CollectionUtils;
 
 import java.lang.reflect.*;
 import java.util.Arrays;
@@ -41,7 +40,8 @@ import java.util.Set;
 
 public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements ModelSchemaExtractionStrategy {
 
-    public static final Equivalence<Method> METHOD_EQUIVALENCE = new MethodSignatureEquivalence();
+    private static final Equivalence<Method> METHOD_EQUIVALENCE = new MethodSignatureEquivalence();
+
     private static final Set<Equivalence.Wrapper<Method>> IGNORED_METHODS = ImmutableSet.copyOf(
         Iterables.transform(
             Iterables.concat(
@@ -55,87 +55,22 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
         )
     );
 
-
     protected boolean isTarget(ModelType<?> type) {
         return type.getRawClass().isAnnotationPresent(Managed.class);
     }
 
-    public <R> ModelSchemaExtractionResult<R> extract(final ModelSchemaExtractionContext<R> extractionContext, ModelSchemaStore store, final ModelSchemaCache cache) {
+    public <R> ModelSchemaExtractionResult<R> extract(final ModelSchemaExtractionContext<R> extractionContext, ModelSchemaStore store, final ModelSchemaCache cache, ModelPropertyNatureExtractor propertyNatureExtractor) {
         ModelType<R> type = extractionContext.getType();
-        Class<? super R> clazz = type.getRawClass();
         if (isTarget(type)) {
             validateType(type, extractionContext);
 
-            Iterable<Method> methods = getManagedMethods(clazz);
-            ImmutableListMultimap<String, Method> methodsByName = Multimaps.index(methods, new Function<Method, String>() {
-                public String apply(Method method) {
-                    return method.getName();
-                }
-            });
+            Iterable<Method> methods = getManagedMethods(type.getRawClass());
 
-            ensureNoOverloadedMethods(extractionContext, methodsByName);
+            ManagedModelPropertiesExtractor propertiesExtractor = new ManagedModelPropertiesExtractor(propertyNatureExtractor);
+            ModelPropertiesExtractionResult propertyExtractionResult = propertiesExtractor.extract(extractionContext, methods);
 
-            List<ModelProperty<?>> properties = Lists.newLinkedList();
-            List<Method> handled = Lists.newArrayListWithCapacity(clazz.getMethods().length);
-            ReturnTypeSpecializationOrdering returnTypeSpecializationOrdering = new ReturnTypeSpecializationOrdering();
-
-            for (String methodName : methodsByName.keySet()) {
-                if (methodName.startsWith("get") && !methodName.equals("get")) {
-                    ImmutableList<Method> getterMethods = methodsByName.get(methodName);
-
-                    // The overload check earlier verified that all methods for are equivalent for our purposes
-                    // So, taking the first one with the most specialized return type is fine.
-                    Method sampleMethod = returnTypeSpecializationOrdering.max(getterMethods);
-
-                    boolean abstractGetter = Modifier.isAbstract(sampleMethod.getModifiers());
-
-                    if (sampleMethod.getParameterTypes().length != 0) {
-                        throw invalidMethod(extractionContext, "getter methods cannot take parameters", sampleMethod);
-                    }
-
-                    Character getterPropertyNameFirstChar = methodName.charAt(3);
-                    if (!Character.isUpperCase(getterPropertyNameFirstChar)) {
-                        throw invalidMethod(extractionContext, "the 4th character of the getter method name must be an uppercase character", sampleMethod);
-                    }
-
-                    ModelType<?> returnType = ModelType.returnType(sampleMethod);
-
-                    String propertyNameCapitalized = methodName.substring(3);
-                    String propertyName = StringUtils.uncapitalize(propertyNameCapitalized);
-                    String setterName = "set" + propertyNameCapitalized;
-                    ImmutableList<Method> setterMethods = methodsByName.get(setterName);
-
-                    boolean isWritable = !setterMethods.isEmpty();
-                    if (isWritable) {
-                        Method setter = setterMethods.get(0);
-
-                        if (!abstractGetter) {
-                            throw invalidMethod(extractionContext, "setters are not allowed for non-abstract getters", setter);
-                        }
-                        validateSetter(extractionContext, returnType, setter);
-                        handled.addAll(setterMethods);
-                    }
-
-                    if (abstractGetter) {
-                        ImmutableSet<ModelType<?>> declaringClasses = ImmutableSet.copyOf(Iterables.transform(getterMethods, new Function<Method, ModelType<?>>() {
-                            public ModelType<?> apply(Method input) {
-                                return ModelType.of(input.getDeclaringClass());
-                            }
-                        }));
-
-                        boolean unmanaged = Iterables.any(getterMethods, new Predicate<Method>() {
-                            public boolean apply(Method input) {
-                                return input.getAnnotation(Unmanaged.class) != null;
-                            }
-                        });
-
-                        properties.add(ModelProperty.of(returnType, propertyName, isWritable, declaringClasses, unmanaged));
-                    }
-                    handled.addAll(getterMethods);
-                }
-            }
-
-            Iterable<Method> notHandled = Iterables.filter(methodsByName.values(), Predicates.not(Predicates.in(handled)));
+            Iterable<ModelProperty<?>> properties = propertyExtractionResult.getProperties();
+            Iterable<Method> notHandled = propertyExtractionResult.getNotHandled();
 
             // TODO - should call out valid getters without setters
             if (!Iterables.isEmpty(notHandled)) {
@@ -156,7 +91,7 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
         }
     }
 
-    protected abstract <R> ModelSchema<R> createSchema(ModelSchemaExtractionContext<R> extractionContext, ModelSchemaStore store, ModelType<R> type, List<ModelProperty<?>> properties, Class<R> concreteClass);
+    protected abstract <R> ModelSchema<R> createSchema(ModelSchemaExtractionContext<R> extractionContext, ModelSchemaStore store, ModelType<R> type, Iterable<ModelProperty<?>> properties, Class<R> concreteClass);
 
     private Iterable<Method> getManagedMethods(final Class<?> clazz) {
         return Iterables.filter(Arrays.asList(clazz.getMethods()), new Predicate<Method>() {
@@ -177,19 +112,6 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
 
     protected boolean ignoreMethod(Method method) {
         return false;
-    }
-
-    private <R> void ensureNoOverloadedMethods(ModelSchemaExtractionContext<R> extractionContext, final ImmutableListMultimap<String, Method> methodsByName) {
-        ImmutableSet<String> methodNames = methodsByName.keySet();
-        for (String methodName : methodNames) {
-            ImmutableList<Method> methods = methodsByName.get(methodName);
-            if (methods.size() > 1) {
-                List<Method> deduped = CollectionUtils.dedup(methods, METHOD_EQUIVALENCE);
-                if (deduped.size() > 1) {
-                    throw invalidMethods(extractionContext, "overloaded methods are not supported", deduped);
-                }
-            }
-        }
     }
 
     private <R, P> ModelSchemaExtractionContext<P> toPropertyExtractionContext(final ModelSchemaExtractionContext<R> parentContext, final ModelProperty<P> property, final ModelSchemaCache modelSchemaCache) {
@@ -254,27 +176,6 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
         } else {
             ImmutableSortedSet<String> declaredBy = ImmutableSortedSet.copyOf(Iterables.transform(property.getDeclaredBy(), Functions.toStringFunction()));
             return String.format("property '%s' declared by %s", property.getName(), Joiner.on(", ").join(declaredBy));
-        }
-    }
-
-    private void validateSetter(ModelSchemaExtractionContext<?> extractionContext, ModelType<?> propertyType, Method setter) {
-        if (!Modifier.isAbstract(setter.getModifiers())) {
-            throw invalidMethod(extractionContext, "non-abstract setters are not allowed", setter);
-        }
-
-        if (!setter.getReturnType().equals(void.class)) {
-            throw invalidMethod(extractionContext, "setter method must have void return type", setter);
-        }
-
-        Type[] setterParameterTypes = setter.getGenericParameterTypes();
-        if (setterParameterTypes.length != 1) {
-            throw invalidMethod(extractionContext, "setter method must have exactly one parameter", setter);
-        }
-
-        ModelType<?> setterType = ModelType.paramType(setter, 0);
-        if (!setterType.equals(propertyType)) {
-            String message = "setter method param must be of exactly the same type as the getter returns (expected: " + propertyType + ", found: " + setterType + ")";
-            throw invalidMethod(extractionContext, message, setter);
         }
     }
 
@@ -380,25 +281,6 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
             }
         }));
         return new InvalidManagedModelElementTypeException(extractionContext, message + " (invalid methods: " + Joiner.on(", ").join(descriptions) + ").");
-    }
-
-    static private class ReturnTypeSpecializationOrdering extends Ordering<Method> {
-
-        @Override
-        public int compare(Method left, Method right) {
-            Class<?> leftType = left.getReturnType();
-            Class<?> rightType = right.getReturnType();
-            if (leftType.equals(rightType)) {
-                return 0;
-            }
-            if (leftType.isAssignableFrom(rightType)) {
-                return -1;
-            }
-            if (rightType.isAssignableFrom(leftType)) {
-                return 1;
-            }
-            throw new UnsupportedOperationException(String.format("Cannot compare two types that aren't part of an inheritance hierarchy: %s, %s", leftType, rightType));
-        }
     }
 
 }

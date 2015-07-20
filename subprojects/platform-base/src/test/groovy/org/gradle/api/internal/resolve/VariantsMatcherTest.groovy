@@ -15,11 +15,15 @@
  */
 
 package org.gradle.api.internal.resolve
-
 import org.gradle.api.Named
 import org.gradle.language.base.internal.model.DefaultVariantDimensionSelectorFactory
 import org.gradle.language.base.internal.model.DefaultVariantsMetaData
 import org.gradle.language.base.internal.model.VariantDimensionSelector
+import org.gradle.language.base.internal.model.VariantPropertyNatureExtractorStrategy
+import org.gradle.model.internal.manage.schema.ModelSchemaStore
+import org.gradle.model.internal.manage.schema.extract.DefaultModelSchemaStore
+import org.gradle.model.internal.manage.schema.extract.ModelPropertyNatureExtractor
+import org.gradle.model.internal.manage.schema.extract.ModelSchemaExtractor
 import org.gradle.platform.base.BinarySpec
 import org.gradle.platform.base.Platform
 import org.gradle.platform.base.Variant
@@ -28,13 +32,23 @@ import spock.lang.Unroll
 
 class VariantsMatcherTest extends Specification {
 
+    ModelSchemaStore schemaStore
+
+    def setup() {
+        schemaStore = new DefaultModelSchemaStore(
+            new ModelSchemaExtractor([],
+                new ModelPropertyNatureExtractor([new VariantPropertyNatureExtractorStrategy()])
+            )
+        )
+    }
+
     @Unroll
     def "should filter binaries based on requirements"() {
         given: "a library binary with some requirements"
 
         def factories = [DefaultVariantDimensionSelectorFactory.of(MyPlatform, new MySelector())]
-        def matcher = new VariantsMatcher(factories, CustomSpecBase)
-        def reference = DefaultVariantsMetaData.extractFrom(spec)
+        def matcher = new VariantsMatcher(factories, CustomSpecBase, schemaStore)
+        def reference = DefaultVariantsMetaData.extractFrom(spec, schemaStore)
 
         when: "we filter binaries based on requirements"
         def filtered = matcher.filterBinaries(reference, binaries)
@@ -90,8 +104,8 @@ class VariantsMatcherTest extends Specification {
                 }
             })
         ]
-        def matcher = new VariantsMatcher(factories, CustomSpecBase)
-        def reference = DefaultVariantsMetaData.extractFrom(spec)
+        def matcher = new VariantsMatcher(factories, CustomSpecBase, schemaStore)
+        def reference = DefaultVariantsMetaData.extractFrom(spec, schemaStore)
 
         when: "we filter binaries based on requirements"
         def filtered = matcher.filterBinaries(reference, binaries)

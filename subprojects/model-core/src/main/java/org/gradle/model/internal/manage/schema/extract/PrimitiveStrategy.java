@@ -35,7 +35,7 @@ public class PrimitiveStrategy implements ModelSchemaExtractionStrategy {
         .put(ModelType.of(Double.TYPE), Double.class)
         .build();
 
-    public <T> ModelSchemaExtractionResult<T> extract(ModelSchemaExtractionContext<T> extractionContext, ModelSchemaStore store, ModelSchemaCache cache) {
+    public <T> ModelSchemaExtractionResult<T> extract(ModelSchemaExtractionContext<T> extractionContext, ModelSchemaStore store, ModelSchemaCache cache, ModelPropertyNatureExtractor propertyNatureExtractor) {
         ModelType<T> type = extractionContext.getType();
         if (type.getRawClass().isPrimitive()) {
             Class<?> replacementType = BOXED_REPLACEMENTS.get(type);

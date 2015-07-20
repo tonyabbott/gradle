@@ -24,9 +24,11 @@ import org.gradle.deployment.internal.DefaultDeploymentRegistry;
 import org.gradle.deployment.internal.DeploymentRegistry;
 import org.gradle.internal.service.ServiceRegistration;
 import org.gradle.internal.service.scopes.PluginServiceRegistry;
+import org.gradle.language.base.internal.model.VariantPropertyNatureExtractorStrategy;
 import org.gradle.language.base.internal.resolve.DependentSourceSetLocalComponentConverter;
 import org.gradle.model.internal.inspect.MethodModelRuleExtractor;
 import org.gradle.model.internal.manage.schema.ModelSchemaStore;
+import org.gradle.model.internal.manage.schema.extract.ModelPropertyNatureExtractionStrategy;
 
 public class ComponentModelBaseServiceRegistry implements PluginServiceRegistry {
 
@@ -76,6 +78,10 @@ public class ComponentModelBaseServiceRegistry implements PluginServiceRegistry 
         }
         MethodModelRuleExtractor createBinaryTaskPluginInspector() {
             return new BinaryTasksModelRuleExtractor();
+        }
+
+        ModelPropertyNatureExtractionStrategy createVariantPropertyNatureExtractionStrategy() {
+            return new VariantPropertyNatureExtractorStrategy();
         }
     }
 

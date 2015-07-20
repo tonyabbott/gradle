@@ -17,6 +17,10 @@
 package org.gradle.language.base.internal.model
 
 import org.gradle.api.Named
+import org.gradle.model.internal.manage.schema.ModelSchemaStore
+import org.gradle.model.internal.manage.schema.extract.DefaultModelSchemaStore
+import org.gradle.model.internal.manage.schema.extract.ModelPropertyNatureExtractor
+import org.gradle.model.internal.manage.schema.extract.ModelSchemaExtractor
 import org.gradle.platform.base.BinarySpec
 import org.gradle.platform.base.Platform
 import org.gradle.platform.base.Variant
@@ -25,11 +29,21 @@ import spock.lang.Unroll
 
 class VariantsMetaDataHelperTest extends Specification {
 
+    ModelSchemaStore schemaStore
+
+    def setup() {
+        schemaStore = new DefaultModelSchemaStore(
+            new ModelSchemaExtractor([],
+                new ModelPropertyNatureExtractor([new VariantPropertyNatureExtractorStrategy()])
+            )
+        )
+    }
+
     @Unroll("Incompatible variant dimensions for #referenceClass.simpleName(#dimensions) onto #candidateClass.simpleName are #expectedIncompatible")
     def "computes the set of incompatible variant dimensions"() {
         given:
-        def reference = DefaultVariantsMetaData.extractFrom(Mock(referenceClass))
-        def candidate = DefaultVariantsMetaData.extractFrom(Mock(candidateClass))
+        def reference = DefaultVariantsMetaData.extractFrom(Mock(referenceClass), schemaStore)
+        def candidate = DefaultVariantsMetaData.extractFrom(Mock(candidateClass), schemaStore)
 
         when:
         def incompatibleDimensions = VariantsMetaDataHelper.incompatibleDimensionTypes(reference, candidate, dimensions as Set)

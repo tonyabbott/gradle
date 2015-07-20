@@ -47,7 +47,7 @@ public class JdkValueTypeStrategy implements ModelSchemaExtractionStrategy {
         ModelType.of(BigDecimal.class)
     );
 
-    public <R> ModelSchemaExtractionResult<R> extract(ModelSchemaExtractionContext<R> extractionContext, ModelSchemaStore store, ModelSchemaCache cache) {
+    public <R> ModelSchemaExtractionResult<R> extract(ModelSchemaExtractionContext<R> extractionContext, ModelSchemaStore store, ModelSchemaCache cache, ModelPropertyNatureExtractor propertyNatureExtractor) {
         ModelType<R> type = extractionContext.getType();
         if (TYPES.contains(type)) {
             return new ModelSchemaExtractionResult<R>(ModelSchema.value(type));

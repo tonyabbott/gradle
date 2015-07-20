@@ -15,8 +15,8 @@
  */
 
 package org.gradle.platform.base.internal.registry
-
 import org.gradle.language.base.internal.model.BinarySpecFactoryRegistry
+import org.gradle.language.base.internal.model.VariantPropertyNatureExtractorStrategy
 import org.gradle.language.base.internal.testinterfaces.NotBinarySpec
 import org.gradle.language.base.internal.testinterfaces.SomeBinarySpec
 import org.gradle.language.base.plugins.ComponentModelBasePlugin
@@ -26,6 +26,7 @@ import org.gradle.model.internal.core.ExtractedModelRule
 import org.gradle.model.internal.core.ModelActionRole
 import org.gradle.model.internal.core.ModelReference
 import org.gradle.model.internal.manage.schema.extract.DefaultModelSchemaStore
+import org.gradle.model.internal.manage.schema.extract.ModelPropertyNatureExtractor
 import org.gradle.model.internal.manage.schema.extract.ModelSchemaExtractor
 import org.gradle.model.internal.type.ModelType
 import org.gradle.platform.base.BinarySpec
@@ -38,11 +39,13 @@ import spock.lang.Unroll
 import java.lang.annotation.Annotation
 
 class BinaryTypeModelRuleExtractorTest extends AbstractAnnotationModelRuleExtractorTest {
+
     BinaryTypeModelRuleExtractor ruleHandler = new BinaryTypeModelRuleExtractor(
         new DefaultModelSchemaStore(
             new ModelSchemaExtractor([
                 new BinarySpecSpecializationSchemaExtractionStrategy()
-            ])
+            ],
+            new ModelPropertyNatureExtractor([new VariantPropertyNatureExtractorStrategy()]))
         )
     )
 

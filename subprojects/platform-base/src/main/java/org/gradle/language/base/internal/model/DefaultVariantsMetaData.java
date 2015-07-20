@@ -20,16 +20,19 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import org.gradle.api.Named;
-import org.gradle.internal.reflect.ClassDetails;
-import org.gradle.internal.reflect.ClassInspector;
-import org.gradle.internal.reflect.PropertyDetails;
+import org.gradle.api.internal.plugins.DslObject;
+import org.gradle.internal.Cast;
+import org.gradle.model.internal.manage.schema.ModelInstanceSchema;
+import org.gradle.model.internal.manage.schema.ModelProperty;
+import org.gradle.model.internal.manage.schema.ModelSchema;
+import org.gradle.model.internal.manage.schema.ModelSchemaStore;
 import org.gradle.model.internal.type.ModelType;
 import org.gradle.platform.base.BinarySpec;
-import org.gradle.platform.base.Variant;
 
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.*;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 
 public class DefaultVariantsMetaData implements VariantsMetaData {
     private final Map<String, Object> variants;
@@ -49,32 +52,31 @@ public class DefaultVariantsMetaData implements VariantsMetaData {
         this.variantDimensionTypes = variantDimensionTypes;
     }
 
-    public static VariantsMetaData extractFrom(BinarySpec spec) {
+    public static <T extends BinarySpec> VariantsMetaData extractFrom(T spec, ModelSchemaStore schemaStore) {
+        Class<T> binaryTypeClass = Cast.uncheckedCast(new DslObject(spec).getDeclaredType());
+        ModelSchema<T> schema = schemaStore.getSchema(binaryTypeClass);
+        if (!(schema instanceof ModelInstanceSchema)) {
+            throw new IllegalStateException("Binary spec with non-instance schema: " + binaryTypeClass.getName());
+        }
+        return extractFrom(spec, (ModelInstanceSchema<T>) schema);
+    }
+
+    public static <T extends BinarySpec> VariantsMetaData extractFrom(T spec, ModelInstanceSchema<T> schema) {
         Map<String, Object> variants = Maps.newHashMap();
         Map<String, ModelType<?>> dimensionTypes = Maps.newHashMap();
-        Class<? extends BinarySpec> specClass = spec.getClass();
-        Set<Class<?>> interfaces = ClassInspector.inspect(specClass).getSuperTypes();
-        for (Class<?> intf : interfaces) {
-            ClassDetails details = ClassInspector.inspect(intf);
-            Collection<? extends PropertyDetails> properties = details.getProperties();
-            for (PropertyDetails property : properties) {
-                List<Method> getters = property.getGetters();
-                for (Method getter : getters) {
-                    if (getter.getAnnotation(Variant.class) != null) {
-                        extractVariant(variants, spec, property.getName(), getter);
-                        dimensionTypes.put(property.getName(), ModelType.of(getter.getReturnType()));
-                    }
-                }
+        for (ModelProperty<?> property : schema.getProperties().values()) {
+            if (property.hasNature(VariantNature.class)) {
+                extractVariant(variants, spec, property.getName(), property);
+                dimensionTypes.put(property.getName(), property.getType());
             }
         }
-
         return new DefaultVariantsMetaData(Collections.unmodifiableMap(variants), ImmutableMap.copyOf(dimensionTypes));
     }
 
-    private static void extractVariant(Map<String, Object> variants, BinarySpec spec, String name, Method method) {
+    private static void extractVariant(Map<String, Object> variants, BinarySpec spec, String name, ModelProperty<?> property) {
         Object result;
         try {
-            result = method.invoke(spec);
+            result = property.getGetter().invoke(spec);
         } catch (IllegalAccessException e) {
             result = null;
         } catch (InvocationTargetException e) {

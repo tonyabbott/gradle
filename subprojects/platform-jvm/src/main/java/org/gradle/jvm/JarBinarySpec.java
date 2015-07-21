@@ -19,6 +19,7 @@ package org.gradle.jvm;
 import org.gradle.api.Incubating;
 import org.gradle.api.artifacts.component.LibraryBinaryIdentifier;
 import org.gradle.internal.HasInternalProtocol;
+import org.gradle.model.internal.manage.IgnoreInModelSchema;
 
 import java.io.File;
 
@@ -30,6 +31,7 @@ public interface JarBinarySpec extends JvmBinarySpec {
     /**
      * The unique identifier of this JarBinarySpec.
      */
+    @IgnoreInModelSchema
     LibraryBinaryIdentifier getId();
 
     /**

@@ -19,6 +19,7 @@ package org.gradle.jvm;
 import org.gradle.api.Incubating;
 import org.gradle.jvm.platform.JavaPlatform;
 import org.gradle.jvm.toolchain.JavaToolChain;
+import org.gradle.model.internal.manage.IgnoreInModelSchema;
 import org.gradle.platform.base.BinarySpec;
 import org.gradle.platform.base.Variant;
 
@@ -33,6 +34,7 @@ public interface JvmBinarySpec extends BinarySpec {
      * {@inheritDoc}
      */
     @Override
+    @IgnoreInModelSchema
     JvmBinaryTasks getTasks();
 
     /**
@@ -54,6 +56,7 @@ public interface JvmBinarySpec extends BinarySpec {
     /**
      * Sets the {@link org.gradle.jvm.toolchain.JavaToolChain} that will be used to build this binary.
      */
+    @IgnoreInModelSchema
     void setToolChain(JavaToolChain toolChain);
 
     /**

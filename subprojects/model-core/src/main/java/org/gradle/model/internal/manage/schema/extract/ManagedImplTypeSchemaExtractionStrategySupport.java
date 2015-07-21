@@ -16,16 +16,15 @@
 
 package org.gradle.model.internal.manage.schema.extract;
 
-import com.google.common.base.*;
-import com.google.common.collect.ImmutableSet;
+import com.google.common.base.Function;
+import com.google.common.base.Functions;
+import com.google.common.base.Joiner;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
-import groovy.lang.GroovyObject;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
-import org.gradle.api.Nullable;
 import org.gradle.internal.reflect.MethodDescription;
-import org.gradle.internal.reflect.MethodSignatureEquivalence;
 import org.gradle.model.Managed;
 import org.gradle.model.internal.manage.schema.ModelProperty;
 import org.gradle.model.internal.manage.schema.ModelSchema;
@@ -33,27 +32,14 @@ import org.gradle.model.internal.manage.schema.ModelSchemaStore;
 import org.gradle.model.internal.manage.schema.cache.ModelSchemaCache;
 import org.gradle.model.internal.type.ModelType;
 
-import java.lang.reflect.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 
-public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements ModelSchemaExtractionStrategy {
-
-    private static final Equivalence<Method> METHOD_EQUIVALENCE = new MethodSignatureEquivalence();
-
-    private static final Set<Equivalence.Wrapper<Method>> IGNORED_METHODS = ImmutableSet.copyOf(
-        Iterables.transform(
-            Iterables.concat(
-                Arrays.asList(Object.class.getMethods()),
-                Arrays.asList(GroovyObject.class.getMethods())
-            ), new Function<Method, Equivalence.Wrapper<Method>>() {
-                public Equivalence.Wrapper<Method> apply(@Nullable Method input) {
-                    return METHOD_EQUIVALENCE.wrap(input);
-                }
-            }
-        )
-    );
+public abstract class ManagedImplTypeSchemaExtractionStrategySupport extends ImplTypeSchemaExtractionStrategySupport {
 
     protected boolean isTarget(ModelType<?> type) {
         return type.getRawClass().isAnnotationPresent(Managed.class);
@@ -64,7 +50,7 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
         if (isTarget(type)) {
             validateType(type, extractionContext);
 
-            Iterable<Method> methods = getManagedMethods(type.getRawClass());
+            Iterable<Method> methods = getCandidateMethods(type.getRawClass());
 
             ManagedModelPropertiesExtractor propertiesExtractor = new ManagedModelPropertiesExtractor(propertyNatureExtractor);
             ModelPropertiesExtractionResult propertyExtractionResult = propertiesExtractor.extract(extractionContext, methods);
@@ -93,27 +79,6 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
 
     protected abstract <R> ModelSchema<R> createSchema(ModelSchemaExtractionContext<R> extractionContext, ModelSchemaStore store, ModelType<R> type, Iterable<ModelProperty<?>> properties, Class<R> concreteClass);
 
-    private Iterable<Method> getManagedMethods(final Class<?> clazz) {
-        return Iterables.filter(Arrays.asList(clazz.getMethods()), new Predicate<Method>() {
-            @Override
-            public boolean apply(Method method) {
-                boolean include = true;
-                if (!clazz.isInterface()) {
-                    include = !method.isSynthetic()
-                        && !IGNORED_METHODS.contains(METHOD_EQUIVALENCE.wrap(method));
-                }
-                if (include) {
-                    include = !ignoreMethod(method);
-                }
-                return include;
-            }
-        });
-    }
-
-    protected boolean ignoreMethod(Method method) {
-        return false;
-    }
-
     private <R, P> ModelSchemaExtractionContext<P> toPropertyExtractionContext(final ModelSchemaExtractionContext<R> parentContext, final ModelProperty<P> property, final ModelSchemaCache modelSchemaCache) {
         return parentContext.child(property.getType(), propertyDescription(parentContext, property), new Action<ModelSchemaExtractionContext<P>>() {
             public void execute(ModelSchemaExtractionContext<P> propertyExtractionContext) {
@@ -130,7 +95,7 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
                     }
                 }
 
-                if (propertySchema.getKind().isAllowedPropertyTypeOfManagedType() && property.isUnmanaged()) {
+                if (propertySchema.getKind().isManaged() && property.isUnmanaged()) {
                     throw new InvalidManagedModelElementTypeException(parentContext, String.format(
                         "property '%s' is marked as @Unmanaged, but is of @Managed type '%s'. Please remove the @Managed annotation.%n",
                         property.getName(), property.getType()
@@ -145,14 +110,14 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
                 }
 
                 if (!property.isWritable()) {
-                    if (property.isUnmanaged()) {
-                        throw new InvalidManagedModelElementTypeException(parentContext, String.format(
-                            "unmanaged property '%s' cannot be read only, unmanaged properties must have setters",
-                            property.getName())
-                        );
-                    }
+//                    if (property.isUnmanaged()) {
+//                        throw new InvalidManagedModelElementTypeException(parentContext, String.format(
+//                            "unmanaged property '%s' cannot be read only, unmanaged properties must have setters",
+//                            property.getName())
+//                        );
+//                    }
 
-                    if (!propertySchema.getKind().isManaged()) {
+                    if (!propertySchema.getKind().isAllowedPropertyTypeOfManagedType()) {
                         throw new InvalidManagedModelElementTypeException(parentContext, String.format(
                             "read only property '%s' has non managed type %s, only managed types can be used",
                             property.getName(), property.getType()));

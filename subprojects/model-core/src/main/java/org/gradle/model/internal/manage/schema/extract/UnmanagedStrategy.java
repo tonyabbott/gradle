@@ -21,7 +21,6 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
 import org.gradle.internal.reflect.MethodDescription;
 import org.gradle.model.internal.manage.schema.ModelProperty;
 import org.gradle.model.internal.manage.schema.ModelSchema;
@@ -30,18 +29,13 @@ import org.gradle.model.internal.manage.schema.cache.ModelSchemaCache;
 import org.gradle.model.internal.type.ModelType;
 
 import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Set;
+import java.util.List;
 
-public class UnmanagedStrategy implements ModelSchemaExtractionStrategy {
+public class UnmanagedStrategy extends ImplTypeSchemaExtractionStrategySupport {
     public <R> ModelSchemaExtractionResult<R> extract(ModelSchemaExtractionContext<R> extractionContext, ModelSchemaStore store, ModelSchemaCache cache, ModelPropertyNatureExtractor propertyNatureExtractor) {
         ModelType<R> type = extractionContext.getType();
 
-        Class<? super R> typeClass = type.getRawClass();
-        Set<Method> allMethods = Sets.newLinkedHashSet(Arrays.asList(typeClass.getMethods()));
-        addInterfaceMethods(typeClass.getInterfaces(), allMethods);
+        List<Method> allMethods = getCandidateMethods(type.getRawClass());
 
         Iterable<Method> methods = Iterables.filter(allMethods, new Predicate<Method>() {
             @Override
@@ -74,13 +68,6 @@ public class UnmanagedStrategy implements ModelSchemaExtractionStrategy {
 //        });
 
         return new ModelSchemaExtractionResult<R>(schema);
-    }
-
-    private void addInterfaceMethods(Class<?>[] interfaces, Collection<Method> allMethods) {
-        for (Class<?> iface : interfaces) {
-            Collections.addAll(allMethods, iface.getMethods());
-            addInterfaceMethods(iface.getInterfaces(), allMethods);
-        }
     }
 
     private InvalidManagedModelElementTypeException invalidMethods(ModelSchemaExtractionContext<?> extractionContext, String message, final Iterable<Method> methods) {

@@ -37,11 +37,22 @@ public class ModelPropertiesExtractor {
     private static final Equivalence<Method> METHOD_EQUIVALENCE = new MethodSignatureEquivalence();
 
     /**
-     * Orders methods based on their return types, more specific types preceding more general types.
+     * Orders methods based on their specificity, methods defined in subtypes precede ones defined in super-types,
+     * more specific return types preceding more general types.
      */
-    private static final Ordering<Method> RETURN_TYPE_SPECIALIZATION_ORDERING = new Ordering<Method>() {
+    // TODO:LPTR Add unit test
+    private static final Ordering<Method> METHOD_SPECIFICITY_ORDERING = new Ordering<Method>() {
         @Override
         public int compare(Method left, Method right) {
+            Class<?> leftDeclaringClass = left.getDeclaringClass();
+            Class<?> rightDeclaringClass = right.getDeclaringClass();
+            if (leftDeclaringClass.isAssignableFrom(rightDeclaringClass)) {
+                return 1;
+            }
+            if (rightDeclaringClass.isAssignableFrom(leftDeclaringClass)) {
+                return -1;
+            }
+
             Class<?> leftType = left.getReturnType();
             Class<?> rightType = right.getReturnType();
             if (leftType.equals(rightType)) {
@@ -80,13 +91,14 @@ public class ModelPropertiesExtractor {
                 List<Method> getterMethods = methodsByName.get(methodName);
                 if (getterMethods.size() > 1) {
                     getterMethods = Lists.newArrayList(getterMethods);
-                    getterMethods.sort(RETURN_TYPE_SPECIALIZATION_ORDERING);
+                    getterMethods.sort(METHOD_SPECIFICITY_ORDERING);
                 }
 
-                // The overload check earlier verified that all methods for are equivalent for our purposes
-                // So, taking one with the most specialized return type is fine.
+                // The overload check earlier verified that all methods for are equivalent for our purposes,
+                // so, taking the most specialized is fine.
                 Method sampleMethod = getterMethods.get(0);
 
+                // If the most specialized method is abstract, it's okay to make our judgement on that information.
                 boolean abstractGetter = Modifier.isAbstract(sampleMethod.getModifiers());
 
                 if (sampleMethod.getParameterTypes().length != 0) {

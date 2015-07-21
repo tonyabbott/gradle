@@ -20,6 +20,7 @@ import org.gradle.api.*;
 import org.gradle.internal.HasInternalProtocol;
 import org.gradle.language.base.LanguageSourceSet;
 import org.gradle.model.ModelMap;
+import org.gradle.model.internal.manage.IgnoreInModelSchema;
 
 /**
  * Represents a binary artifact that is the result of building a project component.
@@ -68,6 +69,7 @@ public interface BinarySpec extends BuildableModelElement, Named {
     /**
      * The set of tasks associated with this binary.
      */
+    @IgnoreInModelSchema
     BinaryTasksCollection getTasks();
 
     /**

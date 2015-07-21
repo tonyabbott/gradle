@@ -29,12 +29,15 @@ import org.gradle.model.internal.manage.schema.extract.ManagedProxyClassGenerato
 import org.gradle.model.internal.manage.schema.extract.ModelSchemaExtractionContext;
 import org.gradle.model.internal.type.ModelType;
 
-import java.lang.reflect.Method;
 import java.util.List;
 
 public class JarBinarySpecSpecializationSchemaExtractionStrategy extends ManagedImplTypeSchemaExtractionStrategySupport {
 
     private final ManagedProxyClassGenerator classGenerator = new ManagedProxyClassGenerator();
+
+    public JarBinarySpecSpecializationSchemaExtractionStrategy() {
+        super(JarBinarySpec.class);
+    }
 
     @Override
     protected boolean isTarget(ModelType<?> type) {
@@ -44,13 +47,8 @@ public class JarBinarySpecSpecializationSchemaExtractionStrategy extends Managed
     }
 
     @Override
-    protected boolean ignoreMethod(Method method) {
-        try {
-            JarBinarySpec.class.getMethod(method.getName(), method.getParameterTypes());
-            return true;
-        } catch (NoSuchMethodException e) {
-            return false;
-        }
+    protected boolean ignoreDelegatedProperty(String property) {
+        return !"targetPlatform".equals(property);
     }
 
     @Override

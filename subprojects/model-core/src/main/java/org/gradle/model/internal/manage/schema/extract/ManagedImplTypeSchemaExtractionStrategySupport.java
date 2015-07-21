@@ -36,6 +36,7 @@ import org.gradle.util.CollectionUtils;
 
 import java.lang.reflect.*;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -55,6 +56,24 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
         )
     );
 
+    private final Set<Equivalence.Wrapper<Method>> delegateMethods;
+
+    public ManagedImplTypeSchemaExtractionStrategySupport() {
+        this(null);
+    }
+
+    public ManagedImplTypeSchemaExtractionStrategySupport(Class<?> delegateType) {
+        if (delegateType != null) {
+            this.delegateMethods = ImmutableSet.copyOf(Iterables.transform(Arrays.asList(delegateType.getMethods()), new Function<Method, Equivalence.Wrapper<Method>>() {
+                @Override
+                public Equivalence.Wrapper<Method> apply(@Nullable Method method) {
+                    return METHOD_EQUIVALENCE.wrap(method);
+                }
+            }));
+        } else {
+            this.delegateMethods = Collections.emptySet();
+        }
+    }
 
     protected boolean isTarget(ModelType<?> type) {
         return type.getRawClass().isAnnotationPresent(Managed.class);
@@ -66,7 +85,9 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
         if (isTarget(type)) {
             validateType(type, extractionContext);
 
-            Iterable<Method> methods = getManagedMethods(clazz);
+            // TODO:LPTR Get all methods by crawling ancestry and using getDeclaredMethods()
+            // This avoids folding multiple overrides into one method, and losing annotations declared on them
+            Iterable<Method> methods = getMethods(clazz);
             ImmutableListMultimap<String, Method> methodsByName = Multimaps.index(methods, new Function<Method, String>() {
                 public String apply(Method method) {
                     return method.getName();
@@ -74,6 +95,7 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
             });
 
             ensureNoOverloadedMethods(extractionContext, methodsByName);
+            // TODO:LPTR Ensure no overrides of delegate type in managed subtype
 
             List<ModelProperty<?>> properties = Lists.newLinkedList();
             List<Method> handled = Lists.newArrayListWithCapacity(clazz.getMethods().length);
@@ -86,8 +108,6 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
                     // The overload check earlier verified that all methods for are equivalent for our purposes
                     // So, taking the first one with the most specialized return type is fine.
                     Method sampleMethod = returnTypeSpecializationOrdering.max(getterMethods);
-
-                    boolean abstractGetter = Modifier.isAbstract(sampleMethod.getModifiers());
 
                     if (sampleMethod.getParameterTypes().length != 0) {
                         throw invalidMethod(extractionContext, "getter methods cannot take parameters", sampleMethod);
@@ -105,37 +125,71 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
                     String setterName = "set" + propertyNameCapitalized;
                     ImmutableList<Method> setterMethods = methodsByName.get(setterName);
 
+                    boolean abstractGetter = Modifier.isAbstract(sampleMethod.getModifiers());
+                    boolean delegateGetter = hasDelegateImplementation(sampleMethod);
                     boolean isWritable = !setterMethods.isEmpty();
                     if (isWritable) {
                         Method setter = setterMethods.get(0);
+                        boolean abstractSetter = Modifier.isAbstract(setter.getModifiers());
 
                         if (!abstractGetter) {
                             throw invalidMethod(extractionContext, "setters are not allowed for non-abstract getters", setter);
                         }
+                        if (!abstractSetter) {
+                            throw invalidMethod(extractionContext, "non-abstract setters are not allowed", setter);
+                        }
+
+                        boolean delegateSetter = hasDelegateImplementation(setter);
+                        if (delegateGetter && !delegateSetter) {
+                            throw invalidMethod(extractionContext, "delegated getter should not have a non-delegated setter", setter);
+                        }
+                        if (!delegateGetter && delegateSetter) {
+                            throw invalidMethod(extractionContext, "delegated setter should not have a non-delegated getter", setter);
+                        }
+
                         validateSetter(extractionContext, returnType, setter);
                         handled.addAll(setterMethods);
                     }
 
-                    if (abstractGetter) {
-                        ImmutableSet<ModelType<?>> declaringClasses = ImmutableSet.copyOf(Iterables.transform(getterMethods, new Function<Method, ModelType<?>>() {
-                            public ModelType<?> apply(Method input) {
-                                return ModelType.of(input.getDeclaringClass());
-                            }
-                        }));
-
-                        boolean unmanaged = Iterables.any(getterMethods, new Predicate<Method>() {
-                            public boolean apply(Method input) {
-                                return input.getAnnotation(Unmanaged.class) != null;
-                            }
-                        });
-
-                        properties.add(ModelProperty.of(returnType, propertyName, isWritable, declaringClasses, unmanaged));
+                    if (delegateGetter && ignoreDelegatedProperty(propertyName)) {
+                        continue;
                     }
+
+                    ModelProperty.Kind kind;
+                    if (abstractGetter) {
+                        if (delegateGetter) {
+                            kind = ModelProperty.Kind.DELEGATED;
+                        } else {
+                            kind = ModelProperty.Kind.MANAGED;
+                        }
+                    } else {
+                        kind = ModelProperty.Kind.UNMANAGED;
+                    }
+
+                    ImmutableSet<ModelType<?>> declaringClasses = ImmutableSet.copyOf(Iterables.transform(getterMethods, new Function<Method, ModelType<?>>() {
+                        public ModelType<?> apply(Method input) {
+                            return ModelType.of(input.getDeclaringClass());
+                        }
+                    }));
+
+                    boolean unmanaged = Iterables.any(getterMethods, new Predicate<Method>() {
+                        public boolean apply(Method input) {
+                            return input.getAnnotation(Unmanaged.class) != null;
+                        }
+                    });
+
+                    properties.add(ModelProperty.of(returnType, propertyName, isWritable, declaringClasses, unmanaged, kind));
                     handled.addAll(getterMethods);
                 }
             }
 
             Iterable<Method> notHandled = Iterables.filter(methodsByName.values(), Predicates.not(Predicates.in(handled)));
+            notHandled = Iterables.filter(notHandled, new Predicate<Method>() {
+                @Override
+                public boolean apply(Method method) {
+                    return !hasDelegateImplementation(method);
+                }
+            });
 
             // TODO - should call out valid getters without setters
             if (!Iterables.isEmpty(notHandled)) {
@@ -156,9 +210,17 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
         }
     }
 
+    private boolean hasDelegateImplementation(Method method) {
+        return delegateMethods.contains(METHOD_EQUIVALENCE.wrap(method));
+    }
+
+    protected boolean ignoreDelegatedProperty(String property) {
+        return true;
+    }
+
     protected abstract <R> ModelSchema<R> createSchema(ModelSchemaExtractionContext<R> extractionContext, ModelSchemaStore store, ModelType<R> type, List<ModelProperty<?>> properties, Class<R> concreteClass);
 
-    private Iterable<Method> getManagedMethods(final Class<?> clazz) {
+    private Iterable<Method> getMethods(final Class<?> clazz) {
         return Iterables.filter(Arrays.asList(clazz.getMethods()), new Predicate<Method>() {
             @Override
             public boolean apply(Method method) {
@@ -167,16 +229,9 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
                     include = !method.isSynthetic()
                         && !IGNORED_METHODS.contains(METHOD_EQUIVALENCE.wrap(method));
                 }
-                if (include) {
-                    include = !ignoreMethod(method);
-                }
                 return include;
             }
         });
-    }
-
-    protected boolean ignoreMethod(Method method) {
-        return false;
     }
 
     private <R> void ensureNoOverloadedMethods(ModelSchemaExtractionContext<R> extractionContext, final ImmutableListMultimap<String, Method> methodsByName) {
@@ -206,6 +261,11 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
                     } else {
                         return;
                     }
+                }
+
+                // Only check managed properties
+                if (property.getKind() != ModelProperty.Kind.MANAGED) {
+                    return;
                 }
 
                 if (propertySchema.getKind().isAllowedPropertyTypeOfManagedType() && property.isUnmanaged()) {
@@ -258,10 +318,6 @@ public abstract class ManagedImplTypeSchemaExtractionStrategySupport implements 
     }
 
     private void validateSetter(ModelSchemaExtractionContext<?> extractionContext, ModelType<?> propertyType, Method setter) {
-        if (!Modifier.isAbstract(setter.getModifiers())) {
-            throw invalidMethod(extractionContext, "non-abstract setters are not allowed", setter);
-        }
-
         if (!setter.getReturnType().equals(void.class)) {
             throw invalidMethod(extractionContext, "setter method must have void return type", setter);
         }

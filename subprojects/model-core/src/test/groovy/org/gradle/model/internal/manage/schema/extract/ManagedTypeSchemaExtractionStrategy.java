@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.gradle.platform.base.internal.registry;
+package org.gradle.model.internal.manage.schema.extract;
 
 import com.google.common.base.Function;
 import org.gradle.model.internal.core.NodeInitializer;
@@ -22,23 +22,29 @@ import org.gradle.model.internal.manage.schema.ModelProperty;
 import org.gradle.model.internal.manage.schema.ModelSchema;
 import org.gradle.model.internal.manage.schema.ModelSchemaStore;
 import org.gradle.model.internal.manage.schema.ModelStructSchema;
-import org.gradle.model.internal.manage.schema.extract.ManagedImplTypeSchemaExtractionStrategySupport;
-import org.gradle.model.internal.manage.schema.extract.ModelSchemaExtractionContext;
 import org.gradle.model.internal.type.ModelType;
-import org.gradle.platform.base.BinarySpec;
-import org.gradle.platform.base.internal.BinarySpecInternal;
 
+import java.util.Collection;
 import java.util.List;
 
-// Needed as a separate Java class because Groovy compiler won't recognize type parameter <R>
-public class BinarySpecSpecializationSchemaExtractionStrategy extends ManagedImplTypeSchemaExtractionStrategySupport {
-    public BinarySpecSpecializationSchemaExtractionStrategy() {
-        super(BinarySpec.class);
+public class ManagedTypeSchemaExtractionStrategy extends ManagedImplTypeSchemaExtractionStrategySupport {
+    private final Class<?> delegateType;
+    private final Collection<String> allowedProperties;
+
+    public ManagedTypeSchemaExtractionStrategy(Class<?> delegateType, Collection<String> allowedDelegateProperties) {
+        super(delegateType);
+        this.delegateType = delegateType;
+        this.allowedProperties = allowedDelegateProperties;
+    }
+
+    @Override
+    protected boolean ignoreDelegatedProperty(String property) {
+        return !allowedProperties.contains(property);
     }
 
     @Override
     protected <R> ModelSchema<R> createSchema(ModelSchemaExtractionContext<R> extractionContext, ModelSchemaStore store, ModelType<R> type, List<ModelProperty<?>> properties, Class<R> concreteClass) {
-        return ModelSchema.struct(type, properties, type.getConcreteClass(), BinarySpecInternal.class, new Function<ModelStructSchema<R>, NodeInitializer>() {
+        return ModelSchema.struct(type, properties, type.getConcreteClass(), delegateType, new Function<ModelStructSchema<R>, NodeInitializer>() {
             @Override
             public NodeInitializer apply(ModelStructSchema<R> schema) {
                 return null;

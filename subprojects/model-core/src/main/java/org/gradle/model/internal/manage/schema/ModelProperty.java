@@ -25,22 +25,41 @@ import java.util.Set;
 @ThreadSafe
 public class ModelProperty<T> {
 
+    public enum Kind {
+        /**
+         * Property implementation is provided via class generation.
+         */
+        MANAGED,
+
+        /**
+         * Property implementation is provided by abstract managed class.
+         */
+        UNMANAGED,
+
+        /**
+         * Property implementation is generated and delegated to unmanaged super-type instance.
+         */
+        DELEGATED
+    }
+
     private final String name;
     private final ModelType<T> type;
     private final boolean writable;
     private final Set<ModelType<?>> declaredBy;
     private final boolean unmanaged;
+    private final Kind kind;
 
-    private ModelProperty(ModelType<T> type, String name, boolean writable, Set<ModelType<?>> declaredBy, boolean unmanaged) {
+    private ModelProperty(ModelType<T> type, String name, boolean writable, Set<ModelType<?>> declaredBy, boolean unmanaged, Kind kind) {
         this.name = name;
         this.type = type;
         this.writable = writable;
         this.declaredBy = ImmutableSet.copyOf(declaredBy);
         this.unmanaged = unmanaged;
+        this.kind = kind;
     }
 
-    public static <T> ModelProperty<T> of(ModelType<T> type, String name, boolean writable, Set<ModelType<?>> declaredBy, boolean unmanaged) {
-        return new ModelProperty<T>(type, name, writable, declaredBy, unmanaged);
+    public static <T> ModelProperty<T> of(ModelType<T> type, String name, boolean writable, Set<ModelType<?>> declaredBy, boolean unmanaged, Kind kind) {
+        return new ModelProperty<T>(type, name, writable, declaredBy, unmanaged, kind);
     }
 
     public String getName() {
@@ -49,6 +68,10 @@ public class ModelProperty<T> {
 
     public boolean isUnmanaged() {
         return unmanaged;
+    }
+
+    public Kind getKind() {
+        return kind;
     }
 
     public ModelType<T> getType() {

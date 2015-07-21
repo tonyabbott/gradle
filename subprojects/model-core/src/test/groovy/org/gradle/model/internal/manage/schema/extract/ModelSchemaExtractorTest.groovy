@@ -914,4 +914,31 @@ interface Managed${typeName} {
         store.getSchema(CustomThing).kind == ModelSchema.Kind.VALUE
         store.getSchema(UnmanagedThing).kind == ModelSchema.Kind.UNMANAGED
     }
+
+    abstract static class UnmanagedType {
+        abstract String getValue()
+        abstract void setValue(String value)
+        abstract String getOtherValue()
+        abstract void setOtherValue(String otherValue)
+    }
+
+    @Managed
+    abstract static class ManagedSubType extends UnmanagedType {
+        abstract String getChildValue()
+        abstract void setChildValue(String childValue)
+    }
+
+    def "can register custom managed strategy"() {
+        given:
+        def strategy = new ManagedTypeSchemaExtractionStrategy(UnmanagedType, ["value"])
+        def extractor = new ModelSchemaExtractor([strategy])
+        def store = new DefaultModelSchemaStore(extractor)
+
+        when:
+        def schema = store.getSchema(ManagedSubType)
+
+        then:
+        schema.kind == ModelSchema.Kind.STRUCT
+        schema.properties.keySet() == ["value", "childValue"] as Set
+    }
 }

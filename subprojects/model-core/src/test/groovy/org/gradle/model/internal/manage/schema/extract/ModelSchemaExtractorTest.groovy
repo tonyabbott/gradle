@@ -941,4 +941,28 @@ interface Managed${typeName} {
         schema.kind == ModelSchema.Kind.STRUCT
         schema.properties.keySet() == ["value", "childValue"] as Set
     }
+
+    static class UnmanagedConcreteType {
+        String value
+        String otherValue
+    }
+
+    static class UnmanagedSubType extends UnmanagedConcreteType {
+        String childValue
+    }
+
+    def "can register custom unmanaged strategy"() {
+        given:
+        def strategy = new UnmanagedImplTypeSchemaExtractionStrategy(UnmanagedConcreteType, ["value"])
+        def extractor = new ModelSchemaExtractor([strategy])
+        def store = new DefaultModelSchemaStore(extractor)
+
+        when:
+        def schema = store.getSchema(UnmanagedSubType)
+
+        then:
+        schema.kind == ModelSchema.Kind.UNMANAGED
+        schema.properties.keySet() == ["value"] as Set
+    }
+
 }

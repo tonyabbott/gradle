@@ -25,6 +25,7 @@ import org.gradle.api.internal.resolve.ProjectModelResolver;
 import org.gradle.internal.service.ServiceRegistration;
 import org.gradle.internal.service.ServiceRegistry;
 import org.gradle.internal.service.scopes.PluginServiceRegistry;
+import org.gradle.jvm.internal.DefaultJarBinarySpec;
 import org.gradle.jvm.internal.DefaultJavaPlatformVariantDimensionSelector;
 import org.gradle.jvm.internal.JarBinaryRenderer;
 import org.gradle.jvm.internal.model.JarBinarySpecSpecializationSchemaExtractionStrategy;
@@ -32,11 +33,14 @@ import org.gradle.jvm.platform.JavaPlatform;
 import org.gradle.language.base.internal.model.DefaultVariantDimensionSelectorFactory;
 import org.gradle.language.base.internal.model.VariantDimensionSelectorFactory;
 import org.gradle.language.base.internal.resolve.DependentSourceSetResolveContext;
+import org.gradle.model.internal.manage.schema.extract.ModelSchemaExtractionStrategy;
+import org.gradle.model.internal.manage.schema.extract.UnmanagedImplTypeSchemaExtractionStrategy;
 
 public class PlatformJvmServices implements PluginServiceRegistry {
     public void registerGlobalServices(ServiceRegistration registration) {
         registration.add(JarBinaryRenderer.class);
         registration.add(JarBinarySpecSpecializationSchemaExtractionStrategy.class);
+        registration.add(ModelSchemaExtractionStrategy.class, new UnmanagedImplTypeSchemaExtractionStrategy(DefaultJarBinarySpec.class, "targetPlatform"));
         registration.add(VariantDimensionSelectorFactory.class, DefaultVariantDimensionSelectorFactory.of(JavaPlatform.class, new DefaultJavaPlatformVariantDimensionSelector()));
     }
 

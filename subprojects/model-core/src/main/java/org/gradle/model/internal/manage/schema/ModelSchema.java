@@ -76,6 +76,10 @@ public class ModelSchema<T> {
         return new ModelSchema<T>(type, Kind.UNMANAGED);
     }
 
+    public static <T> ModelSchema<T> unmanagedInstance(ModelType<T> type, Iterable<ModelProperty<?>> properties) {
+        return new UnmanagedModelSchema<T>(type, properties);
+    }
+
     protected ModelSchema(ModelType<T> type, Kind kind) {
         this.type = type;
         this.kind = kind;

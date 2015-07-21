@@ -40,13 +40,6 @@ public class JarBinarySpecSpecializationSchemaExtractionStrategy extends Managed
     }
 
     @Override
-    protected boolean isTarget(ModelType<?> type) {
-        return super.isTarget(type)
-            && !type.getRawClass().equals(JarBinarySpec.class)
-            && JarBinarySpec.class.isAssignableFrom(type.getRawClass());
-    }
-
-    @Override
     protected boolean ignoreDelegatedProperty(String property) {
         return !"targetPlatform".equals(property);
     }

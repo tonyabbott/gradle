@@ -15,15 +15,13 @@
  */
 
 package org.gradle.integtests.tooling.r26
-import org.apache.commons.io.output.TeeOutputStream
+
 import org.gradle.api.GradleException
+import org.gradle.integtests.tooling.TestLauncherSpec
 import org.gradle.integtests.tooling.fixture.*
-import org.gradle.test.fixtures.ConcurrentTestUtil
 import org.gradle.tooling.*
 import org.gradle.tooling.events.ProgressEvent
 import org.gradle.tooling.events.ProgressListener
-import org.gradle.tooling.events.task.TaskFinishEvent
-import org.gradle.tooling.events.task.TaskOperationDescriptor
 import org.gradle.tooling.events.test.TestOperationDescriptor
 import org.gradle.tooling.exceptions.UnsupportedBuildArgumentException
 import org.gradle.util.Requires
@@ -31,15 +29,7 @@ import org.gradle.util.TestPrecondition
 
 @ToolingApiVersion(">=2.6")
 @TargetGradleVersion(">=1.0-milestone-8")
-class TestLauncherCrossVersionSpec extends ToolingApiSpecification {
-    TestOutputStream stderr = new TestOutputStream()
-    TestOutputStream stdout = new TestOutputStream()
-
-    ProgressEvents events = new ProgressEvents()
-
-    def setup() {
-        testCode()
-    }
+class TestLauncherCrossVersionSpec extends TestLauncherSpec {
 
     @TargetGradleVersion(">=2.6")
     def "test launcher api fires progress events"() {
@@ -63,10 +53,10 @@ class TestLauncherCrossVersionSpec extends ToolingApiSpecification {
         events.operation("Gradle Test Run :secondTest").successful
         events.operation("Gradle Test Executor 2").successful
         events.tests.findAll { it.descriptor.displayName == "Test class example.MyTest" }.size() == 2
-        events.tests.findAll { it.descriptor.displayName == "Test foo(example.MyTest)"  }.size() == 2
+        events.tests.findAll { it.descriptor.displayName == "Test foo(example.MyTest)" }.size() == 2
         events.tests.findAll { it.descriptor.displayName == "Test foo2(example.MyTest)" }.size() == 2
         events.tests.findAll { it.descriptor.displayName == "Test foo2(example.MyTest)" }.size() == 2
-        events.tests.findAll { it.descriptor.displayName == "Test class example2.MyOtherTest"}.size() == 2
+        events.tests.findAll { it.descriptor.displayName == "Test class example2.MyOtherTest" }.size() == 2
     }
 
     @TargetGradleVersion(">=2.6")
@@ -213,7 +203,7 @@ class TestLauncherCrossVersionSpec extends ToolingApiSpecification {
             }
         """
         when:
-        launchTests{ TestLauncher launcher ->
+        launchTests { TestLauncher launcher ->
             launcher.withJvmTestClasses("util.TestUtil")
         }
         then:
@@ -306,7 +296,7 @@ class TestLauncherCrossVersionSpec extends ToolingApiSpecification {
         when:
         launchTests { TestLauncher launcher ->
             launcher.withJvmTestClasses("example.MyTest")
-                    .withArguments("--someInvalidArgument")
+                .withArguments("--someInvalidArgument")
         }
         then:
         def e = thrown(UnsupportedBuildArgumentException)
@@ -481,205 +471,4 @@ class TestLauncherCrossVersionSpec extends ToolingApiSpecification {
             }
         }
     }
-
-
-    def assertBuildCancelled() {
-        stdout.toString().contains("Build cancelled.")
-        true
-    }
-
-    private void waitingForBuild() {
-        ConcurrentTestUtil.poll {
-            assert stdout.toString().contains("Waiting for changes to input files of tasks...");
-        }
-        stdout.reset()
-        stderr.reset()
-    }
-
-    boolean assertTaskExecuted(String taskPath) {
-        assert events.all.findAll { it instanceof TaskFinishEvent }.any { it.descriptor.taskPath == taskPath }
-        true
-    }
-
-    def assertTaskNotExecuted(String taskPath) {
-        assert !events.all.findAll { it instanceof TaskFinishEvent }.any { it.descriptor.taskPath == taskPath }
-        true
-    }
-
-    def assertTaskNotUpToDate(String taskPath) {
-        assert events.all.findAll { it instanceof TaskFinishEvent }.any { it.descriptor.taskPath == taskPath && !it.result.upToDate }
-        true
-    }
-
-    def assertTestNotExecuted(Map testInfo) {
-        assert !hasTestDescriptor(testInfo)
-        true
-    }
-
-    def assertTestExecuted(Map testInfo) {
-        assert hasTestDescriptor(testInfo)
-        true
-    }
-
-    Collection<TestOperationDescriptor> testDescriptors(List<TestOperationDescriptor> descriptors = events.tests.collect { it.descriptor }, String className, String methodName, String taskpath) {
-
-        def descriptorByClassAndMethod = descriptors.findAll { it.className == className && it.methodName == methodName }
-        if (taskpath == null) {
-            return descriptorByClassAndMethod
-        }
-
-        return descriptorByClassAndMethod.findAll {
-            def parent = it.parent
-            while (parent.parent != null) {
-                parent = parent.parent
-                if (parent instanceof TaskOperationDescriptor) {
-                    return parent.taskPath == taskpath
-                }
-            }
-            false
-        }
-    }
-
-    Collection<TestOperationDescriptor> testDescriptors(List<TestOperationDescriptor> descriptors = events.tests.collect { it.descriptor }, String className, String methodName) {
-        testDescriptors(descriptors, className, methodName, null)
-    }
-
-    Collection<TestOperationDescriptor> testDescriptors(List<TestOperationDescriptor> descriptors = events.tests.collect { it.descriptor }, String className) {
-        testDescriptors(descriptors, className, null)
-    }
-
-
-    private boolean hasTestDescriptor(testInfo) {
-        def collect = events.tests.collect { it.descriptor }
-        !testDescriptors(collect, testInfo.className, testInfo.methodName, testInfo.task).isEmpty()
-    }
-
-    void launchTests(Collection<TestOperationDescriptor> testsToLaunch) {
-        launchTests { TestLauncher testLauncher ->
-            testLauncher.withTests(testsToLaunch.toArray(new TestOperationDescriptor[testsToLaunch.size()]))
-        }
-    }
-
-    void launchTests(Closure configurationClosure) {
-        withConnection { ProjectConnection connection ->
-            launchTests(connection, null, GradleConnector.newCancellationTokenSource(), configurationClosure)
-        }
-    }
-
-    void launchTests(ProjectConnection connection, ResultHandler<Void> resultHandler, CancellationTokenSource cancellationTokenSource, Closure confgurationClosure) {
-
-        TestLauncher testLauncher = connection.newTestLauncher()
-            .withCancellationToken(cancellationTokenSource.token())
-            .addProgressListener(events)
-
-        if (toolingApi.isEmbedded()) {
-            testLauncher
-                .setStandardOutput(stdout)
-                .setStandardError(stderr)
-        } else {
-            testLauncher
-                .setStandardOutput(new TeeOutputStream(stdout, System.out))
-                .setStandardError(new TeeOutputStream(stderr, System.err))
-        }
-
-        confgurationClosure.call(testLauncher)
-
-        events.clear()
-        if (resultHandler == null) {
-            testLauncher.run()
-        } else {
-            testLauncher.run(resultHandler)
-        }
-    }
-
-    private collectDescriptorsFromBuild() {
-        try {
-            withConnection {
-                ProjectConnection connection ->
-                    connection.newBuild().forTasks('build').withArguments("--continue").addProgressListener(events).run()
-            }
-        } catch (BuildException e) {
-        }
-    }
-
-    def testCode() {
-        settingsFile << "rootProject.name = 'testproject'\n"
-        buildFile.text = simpleJavaProject()
-
-        buildFile << """
-            sourceSets {
-                moreTests {
-                    java.srcDir "src/test"
-                    compileClasspath = compileClasspath + sourceSets.test.compileClasspath
-                    runtimeClasspath = runtimeClasspath + sourceSets.test.runtimeClasspath
-                }
-            }
-
-            task secondTest(type:Test) {
-                classpath = sourceSets.moreTests.runtimeClasspath
-                testClassesDir = sourceSets.moreTests.output.classesDir
-            }
-
-            build.dependsOn secondTest
-        """
-
-        file("src/test/java/example/MyTest.java") << """
-            package example;
-            public class MyTest {
-                @org.junit.Test public void foo() throws Exception {
-                     org.junit.Assert.assertEquals(1, 1);
-                }
-                @org.junit.Test public void foo2() throws Exception {
-                     org.junit.Assert.assertEquals(1, 1);
-                }
-            }
-        """
-
-        file("src/test/java/example2/MyOtherTest.java") << """
-            package example2;
-            public class MyOtherTest {
-                @org.junit.Test public void bar() throws Exception {
-                     org.junit.Assert.assertEquals(2, 2);
-                }
-            }
-        """
-    }
-
-
-    def changeTestSource() {
-        // adding two more test methods
-        file("src/test/java/example/MyTest.java").text = """
-            package example;
-            public class MyTest {
-                @org.junit.Test public void foo() throws Exception {
-                     org.junit.Assert.assertEquals(1, 1);
-                }
-                @org.junit.Test public void foo2() throws Exception {
-                     org.junit.Assert.assertEquals(1, 1);
-                }
-                @org.junit.Test public void foo3() throws Exception {
-                     org.junit.Assert.assertEquals(1, 1);
-                }
-                @org.junit.Test public void foo4() throws Exception {
-                     org.junit.Assert.assertEquals(1, 1);
-                }
-            }
-        """
-    }
-
-
-    def simpleJavaProject() {
-        """
-        allprojects{
-            apply plugin: 'java'
-            repositories { mavenCentral() }
-            dependencies { testCompile 'junit:junit:4.12' }
-        }
-        """
-    }
-
-    def testClassRemoved() {
-        file("src/test/java/example/MyTest.java").delete()
-    }
-
 }
